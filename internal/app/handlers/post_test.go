@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -64,6 +65,72 @@ func TestPostHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.True(t, strings.HasPrefix(string(resBody), tc.want.body))
+		})
+	}
+}
+
+func TestPostJsonHandler(t *testing.T) {
+	// тестовое хранилище.
+	repo := storage.NewMockStorage()
+	handler := PostJSONHandler(repo, "http://localhost:8080/")
+
+	type want struct {
+		code         int
+		body         RequestBody
+		expectedBody ResponseBody
+		contentType  string
+	}
+
+	testCases := []struct {
+		name     string
+		inputURL string
+		want     want
+	}{
+		{
+			name: "Valid URL",
+			want: want{
+				code: http.StatusCreated,
+				body: RequestBody{
+					URL: "https://practicum.yandex.ru/",
+				},
+				expectedBody: ResponseBody{
+					ShortURL: "http://localhost:8080/",
+				},
+				contentType: "Content-Type: application/json",
+			},
+		},
+		{
+			name: "Invalid request body",
+			want: want{
+				code:         http.StatusBadRequest,
+				body:         RequestBody{},
+				expectedBody: ResponseBody{},
+				contentType:  "Content-Type: application/json",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// тестовый HTTP-запрос.
+			body, _ := json.Marshal(tc.want.body)
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(body))
+			rec := httptest.NewRecorder()
+
+			handler(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+			assert.Equal(t, tc.want.code, res.StatusCode)
+
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			var resp ResponseBody
+
+			json.Unmarshal(resBody, &resp)
+
+			assert.True(t, strings.HasPrefix(resp.ShortURL, tc.want.expectedBody.ShortURL))
 		})
 	}
 }

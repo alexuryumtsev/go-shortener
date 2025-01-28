@@ -1,8 +1,7 @@
 package handlers
 
 import (
-	"crypto/md5"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -35,7 +34,38 @@ func PostHandler(storage storage.URLStorage, baseURL string) http.HandlerFunc {
 	}
 }
 
-// generateID генерирует случайный идентификатор.
-func generateID(url string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(url)))[:8] // Используем MD5 и берём первые 8 символов.
+// RequestBody определяет структуру входных данных.
+type RequestBody struct {
+	URL string `json:"url"`
+}
+
+// ResponseBody определяет структуру ответа.
+type ResponseBody struct {
+	ShortURL string `json:"result"`
+}
+
+// PostHandler обрабатывает POST-запросы для создания коротких URL.
+func PostJSONHandler(storage storage.URLStorage, baseURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req RequestBody
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		shortenedURL, err := service.NewURLService(storage, baseURL).ShortenerURL(req.URL)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		resp := ResponseBody{
+			ShortURL: shortenedURL,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(resp)
+	}
 }
