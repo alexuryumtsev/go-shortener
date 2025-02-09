@@ -29,7 +29,7 @@ func (s *URLService) ShortenerURL(originalURL string) (string, error) {
 	}
 
 	id := generateID(originalURL)
-	s.storage.Save(models.URLModel{ID: id, URL: originalURL}, s.ctx)
+	s.storage.Save(s.ctx, models.URLModel{ID: id, URL: originalURL})
 
 	shortenedURL := s.baseURL + "/" + id
 	return shortenedURL, nil

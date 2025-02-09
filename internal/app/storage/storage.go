@@ -6,23 +6,31 @@ import (
 	"os"
 	"sync"
 
+	"github.com/alexuryumtsev/go-shortener/internal/app/db"
 	"github.com/alexuryumtsev/go-shortener/internal/app/fileutils"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 )
 
 // URLReader определяет методы для чтения URL.
 type URLReader interface {
-	Get(id string, ctx context.Context) (models.URLModel, bool)
+	Get(ctx context.Context, id string) (models.URLModel, bool)
 	LoadFromFile() error
 }
 
 // URLWriter определяет методы для записи URL.
 type URLWriter interface {
-	Save(urlModel models.URLModel, ctx context.Context) error
+	Save(ctx context.Context, urlModel models.URLModel) error
 }
 
-// Storage управляет сохранением и получением данных.
-type Storage struct {
+// URLStorage объединяет интерфейсы URLReader и URLWriter.
+type URLStorage interface {
+	URLReader
+	URLWriter
+	Ping(ctx context.Context) error
+}
+
+// FileStorage управляет сохранением и получением данных в файле.
+type FileStorage struct {
 	mu          sync.RWMutex
 	data        map[string]string
 	filePath    string
@@ -30,9 +38,9 @@ type Storage struct {
 	fileStorage *fileutils.FileStorage
 }
 
-// NewStorage создаёт новое хранилище.
-func NewStorage(filePath string) *Storage {
-	return &Storage{
+// NewFileStorage создаёт новое файловое хранилище.
+func NewFileStorage(filePath string) *FileStorage {
+	return &FileStorage{
 		data:        make(map[string]string),
 		filePath:    filePath,
 		counter:     0,
@@ -41,7 +49,7 @@ func NewStorage(filePath string) *Storage {
 }
 
 // Save сохраняет URL и записывает данные в файл.
-func (s *Storage) Save(urlModel models.URLModel, ctx context.Context) error {
+func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -66,7 +74,7 @@ func (s *Storage) Save(urlModel models.URLModel, ctx context.Context) error {
 }
 
 // Get возвращает оригинальный URL по идентификатору.
-func (s *Storage) Get(id string, ctx context.Context) (models.URLModel, bool) {
+func (s *FileStorage) Get(ctx context.Context, id string) (models.URLModel, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	url, exists := s.data[id]
@@ -74,7 +82,7 @@ func (s *Storage) Get(id string, ctx context.Context) (models.URLModel, bool) {
 }
 
 // LoadFromFile загружает данные из файла.
-func (s *Storage) LoadFromFile() error {
+func (s *FileStorage) LoadFromFile() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -106,4 +114,41 @@ func (s *Storage) LoadFromFile() error {
 
 	s.data = data
 	return nil
+}
+
+// Ping проверяет соединение с базой данных (для файлового хранилища всегда возвращает nil).
+func (s *FileStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
+// DatabaseStorage управляет сохранением и получением данных в базе данных.
+type DatabaseStorage struct {
+	db *db.Database
+}
+
+// NewDatabaseStorage создаёт новое хранилище для базы данных.
+func NewDatabaseStorage(db *db.Database) *DatabaseStorage {
+	return &DatabaseStorage{db: db}
+}
+
+// Save сохраняет URL в базе данных.
+func (s *DatabaseStorage) Save(ctx context.Context, urlModel models.URLModel) error {
+	// Реализация сохранения в базе данных
+	return nil
+}
+
+// Get возвращает оригинальный URL по идентификатору из базы данных.
+func (s *DatabaseStorage) Get(ctx context.Context, id string) (models.URLModel, bool) {
+	// Реализация получения из базы данных
+	return models.URLModel{}, false
+}
+
+// LoadFromFile загружает данные из базы данных (не требуется для базы данных).
+func (s *DatabaseStorage) LoadFromFile() error {
+	return nil
+}
+
+// Ping проверяет соединение с базой данных.
+func (s *DatabaseStorage) Ping(ctx context.Context) error {
+	return s.db.Ping(ctx)
 }

@@ -12,6 +12,7 @@ type Config struct {
 	ServerAddress   string // Адрес запуска HTTP-сервера
 	BaseURL         string // Базовый адрес для сокращённых URL
 	FileStoragePath string // Путь к файлу хранилища
+	DatabaseDSN     string // подключения к PostgreSQL
 }
 
 // Значения по умолчанию.
@@ -19,6 +20,7 @@ const (
 	defaultServerAddress = ":8080"
 	defaultBaseURL       = "http://localhost:8080/"
 	defaultStoragePath   = "tmp/storage.json"
+	defaultDatabaseDSN   = ""
 )
 
 func InitConfig() (*Config, error) {
@@ -29,11 +31,13 @@ func InitConfig() (*Config, error) {
 	envBaseURL := os.Getenv("BASE_URL")
 	envPath := os.Getenv("FILE_STORAGE_PATH")
 	envFileStorageName := os.Getenv("FILE_STORAGE_NAME")
+	envDatabaseDSN := os.Getenv("DATABASE_DSN")
 
 	// Определяем флаги
 	flag.StringVar(&cfg.ServerAddress, "a", "", "HTTP server address, host:port")
 	flag.StringVar(&cfg.BaseURL, "b", "", "Base URL for shortened links")
 	flag.StringVar(&cfg.FileStoragePath, "f", "", "Path to file storage")
+	flag.StringVar(&cfg.DatabaseDSN, "d", envDatabaseDSN, "Строка подключения к базе данных (DSN)")
 
 	// Обрабатываем флаги
 	flag.Parse()
@@ -71,6 +75,10 @@ func InitConfig() (*Config, error) {
 
 	if cfg.FileStoragePath == "" {
 		cfg.FileStoragePath = defaultStoragePath
+	}
+
+	if cfg.DatabaseDSN == "" {
+		cfg.DatabaseDSN = defaultDatabaseDSN
 	}
 
 	// Проверка корректности URL
