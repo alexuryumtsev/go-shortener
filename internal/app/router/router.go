@@ -12,13 +12,12 @@ import (
 )
 
 // ShortenerRouter создает маршруты для приложения.
-func ShortenerRouter(cfg *config.Config) chi.Router {
-	// Инициализация хранилища.
-	repo := storage.NewStorage(cfg.FileStoragePath)
-
-	// Загрузка данных из файла.
-	if err := repo.LoadFromFile(); err != nil {
-		log.Printf("Error loading storage from file: %v", err)
+func ShortenerRouter(cfg *config.Config, repo storage.URLStorage) chi.Router {
+	// Загрузка данных из файла, если используется файловое хранилище.
+	if fileRepo, ok := repo.(*storage.FileStorage); ok {
+		if err := fileRepo.LoadFromFile(); err != nil {
+			log.Printf("Error loading storage from file: %v", err)
+		}
 	}
 
 	// Регистрация маршрутов.
@@ -28,6 +27,7 @@ func ShortenerRouter(cfg *config.Config) chi.Router {
 	r.Route("/", func(r chi.Router) {
 		r.Post("/", handlers.PostHandler(repo, cfg.BaseURL))
 		r.Get("/{id}", handlers.GetHandler(repo))
+		r.Get("/ping", handlers.PingHandler(repo))
 		r.Post("/api/shorten", handlers.PostJSONHandler(repo, cfg.BaseURL))
 	})
 

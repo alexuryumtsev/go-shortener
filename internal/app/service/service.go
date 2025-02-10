@@ -11,13 +11,14 @@ import (
 )
 
 type URLService struct {
+	ctx     context.Context
 	storage storage.URLWriter
 	baseURL string
-	ctx     context.Context
 }
 
-func NewURLService(storage storage.URLWriter, baseURL string, ctx context.Context) *URLService {
+func NewURLService(ctx context.Context, storage storage.URLWriter, baseURL string) *URLService {
 	return &URLService{
+		ctx:     ctx,
 		storage: storage,
 		baseURL: strings.TrimSuffix(baseURL, "/"),
 	}
@@ -29,7 +30,7 @@ func (s *URLService) ShortenerURL(originalURL string) (string, error) {
 	}
 
 	id := generateID(originalURL)
-	s.storage.Save(models.URLModel{ID: id, URL: originalURL}, s.ctx)
+	s.storage.Save(s.ctx, models.URLModel{ID: id, URL: originalURL})
 
 	shortenedURL := s.baseURL + "/" + id
 	return shortenedURL, nil

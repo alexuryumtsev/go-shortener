@@ -23,7 +23,7 @@ func PostHandler(storage storage.URLWriter, baseURL string) http.HandlerFunc {
 
 		ctx := r.Context()
 		originalURL := strings.TrimSpace(string(body))
-		shortenedURL, err := service.NewURLService(storage, baseURL, ctx).ShortenerURL(originalURL)
+		shortenedURL, err := service.NewURLService(ctx, storage, baseURL).ShortenerURL(originalURL)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -56,7 +56,7 @@ func PostJSONHandler(storage storage.URLWriter, baseURL string) http.HandlerFunc
 		defer r.Body.Close()
 
 		ctx := r.Context()
-		shortenedURL, err := service.NewURLService(storage, baseURL, ctx).ShortenerURL(req.URL)
+		shortenedURL, err := service.NewURLService(ctx, storage, baseURL).ShortenerURL(req.URL)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
