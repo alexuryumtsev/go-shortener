@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/validator"
 )
@@ -13,14 +14,16 @@ type Config struct {
 	BaseURL         string // Базовый адрес для сокращённых URL
 	FileStoragePath string // Путь к файлу хранилища
 	DatabaseDSN     string // подключения к PostgreSQL
+	BatchSize       int    // Размер батча для пакетных операций
 }
 
 // Значения по умолчанию.
 const (
 	defaultServerAddress = ":8080"
 	defaultBaseURL       = "http://localhost:8080/"
-	defaultStoragePath   = "tmp/storage.json"
+	defaultStoragePath   = "/tmp/storage.json"
 	defaultDatabaseDSN   = ""
+	defaultBatchSize     = 10
 )
 
 func InitConfig() (*Config, error) {
@@ -32,12 +35,14 @@ func InitConfig() (*Config, error) {
 	envPath := os.Getenv("FILE_STORAGE_PATH")
 	envFileStorageName := os.Getenv("FILE_STORAGE_NAME")
 	envDatabaseDSN := os.Getenv("DATABASE_DSN")
+	envBatchSize := os.Getenv("BATCH_SIZE")
 
 	// Определяем флаги
 	flag.StringVar(&cfg.ServerAddress, "a", "", "HTTP server address, host:port")
 	flag.StringVar(&cfg.BaseURL, "b", "", "Base URL for shortened links")
 	flag.StringVar(&cfg.FileStoragePath, "f", "", "Path to file storage")
 	flag.StringVar(&cfg.DatabaseDSN, "d", envDatabaseDSN, "Строка подключения к базе данных (DSN)")
+	flag.IntVar(&cfg.BatchSize, "batch", defaultBatchSize, "Batch size for bulk operations")
 
 	// Обрабатываем флаги
 	flag.Parse()
@@ -79,6 +84,17 @@ func InitConfig() (*Config, error) {
 
 	if cfg.DatabaseDSN == "" {
 		cfg.DatabaseDSN = defaultDatabaseDSN
+	}
+
+	// Установка размера батча из переменной окружения, если указана
+	if envBatchSize != "" {
+		if size, err := strconv.Atoi(envBatchSize); err == nil {
+			cfg.BatchSize = size
+		}
+	}
+
+	if cfg.BatchSize <= 0 {
+		cfg.BatchSize = defaultBatchSize
 	}
 
 	// Проверка корректности URL

@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 )
@@ -33,7 +32,7 @@ func NewFileStorage(filePath string) *FileStorage {
 }
 
 // SaveRecord сохраняет запись в файл.
-func (fs *FileStorage) SaveRecord(w io.WriteCloser, counter int, urlModel models.URLModel) error {
+func (fs *FileStorage) SaveRecord(w io.WriteCloser, urlModel models.URLModel) error {
 	defer w.Close()
 
 	bufferedWriter := bufio.NewWriter(w)
@@ -43,10 +42,12 @@ func (fs *FileStorage) SaveRecord(w io.WriteCloser, counter int, urlModel models
 		UUID        string `json:"uuid"`
 		ShortURL    string `json:"short_url"`
 		OriginalURL string `json:"original_url"`
+		DeletedFlag bool   `json:"is_deleted"`
 	}{
-		UUID:        strconv.Itoa(counter),
+		UUID:        urlModel.UserID,
 		ShortURL:    urlModel.ID,
 		OriginalURL: urlModel.URL,
+		DeletedFlag: urlModel.Deleted,
 	}
 
 	encoder := json.NewEncoder(bufferedWriter)
@@ -58,19 +59,25 @@ func (fs *FileStorage) SaveRecord(w io.WriteCloser, counter int, urlModel models
 }
 
 // LoadRecords загружает записи из файла.
-func (fs *FileStorage) LoadRecords(r io.Reader) (map[string]string, error) {
-	data := make(map[string]string)
+func (fs *FileStorage) LoadRecords(r io.Reader) (map[string]models.URLModel, error) {
+	data := make(map[string]models.URLModel)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		var record struct {
 			UUID        string `json:"uuid"`
 			ShortURL    string `json:"short_url"`
 			OriginalURL string `json:"original_url"`
+			Deleted     bool   `json:"is_deleted"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
 			return nil, err
 		}
-		data[record.ShortURL] = record.OriginalURL
+		data[record.ShortURL] = models.URLModel{
+			ID:      record.ShortURL,
+			URL:     record.OriginalURL,
+			UserID:  record.UUID,
+			Deleted: record.Deleted,
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

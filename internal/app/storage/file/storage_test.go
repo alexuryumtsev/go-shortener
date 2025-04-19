@@ -67,7 +67,7 @@ func TestStorage_SaveToFileFormat(t *testing.T) {
 
 	storage := NewFileStorage(filePath)
 	ctx := context.Background()
-	urlModel := models.URLModel{ID: "4rSPg8ap", URL: "http://yandex.ru"}
+	urlModel := models.URLModel{ID: "4rSPg8ap", URL: "http://yandex.ru", UserID: "1", Deleted: false}
 	err := storage.Save(ctx, urlModel)
 	assert.NoError(t, err)
 
@@ -75,12 +75,18 @@ func TestStorage_SaveToFileFormat(t *testing.T) {
 	assert.NoError(t, err)
 	defer file.Close()
 
-	var record map[string]string
+	var record struct {
+		UUID        string `json:"uuid"`
+		ShortURL    string `json:"short_url"`
+		OriginalURL string `json:"original_url"`
+		Deleted     bool   `json:"is_deleted"`
+	}
+
 	decoder := json.NewDecoder(file)
 	err = decoder.Decode(&record)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "1", record["uuid"])
-	assert.Equal(t, "4rSPg8ap", record["short_url"])
-	assert.Equal(t, "http://yandex.ru", record["original_url"])
+	assert.Equal(t, "1", record.UUID)
+	assert.Equal(t, "4rSPg8ap", record.ShortURL)
+	assert.Equal(t, "http://yandex.ru", record.OriginalURL)
 }

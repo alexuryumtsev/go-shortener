@@ -13,7 +13,8 @@ import (
 // FileStorage управляет сохранением и получением данных в файле.
 type FileStorage struct {
 	mu          sync.RWMutex
-	data        map[string]string
+	data        map[string]models.URLModel
+	userData    map[string][]models.URLModel
 	filePath    string
 	counter     int
 	fileStorage *fileutils.FileStorage
@@ -22,7 +23,8 @@ type FileStorage struct {
 // NewFileStorage создаёт новое файловое хранилище.
 func NewFileStorage(filePath string) *FileStorage {
 	return &FileStorage{
-		data:        make(map[string]string),
+		data:        make(map[string]models.URLModel),
+		userData:    make(map[string][]models.URLModel),
 		filePath:    filePath,
 		counter:     0,
 		fileStorage: fileutils.NewFileStorage(filePath),
@@ -36,14 +38,15 @@ func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error 
 
 	// Проверяем, существует ли уже оригинальный URL
 	for _, existingURL := range s.data {
-		if existingURL == urlModel.URL {
+		if existingURL.URL == urlModel.URL {
 			// Если URL уже существует, ничего не делаем
 			return nil
 		}
 	}
 
-	s.data[urlModel.ID] = urlModel.URL
-	s.counter++
+	s.data[urlModel.ID] = urlModel
+	userID := urlModel.UserID
+	s.userData[userID] = append(s.userData[userID], urlModel)
 
 	file, err := os.OpenFile(s.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -51,7 +54,7 @@ func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error 
 	}
 	defer file.Close()
 
-	return s.fileStorage.SaveRecord(file, s.counter, urlModel)
+	return s.fileStorage.SaveRecord(file, urlModel)
 }
 
 // SaveBatch сохраняет множество URL в файл.
@@ -68,16 +71,17 @@ func (s *FileStorage) SaveBatch(ctx context.Context, urlModels []models.URLModel
 	for _, urlModel := range urlModels {
 		// Проверяем, существует ли уже оригинальный URL
 		for _, existingURL := range s.data {
-			if existingURL == urlModel.URL {
+			if existingURL.URL == urlModel.URL {
 				// Если URL уже существует, ничего не делаем
 				continue
 			}
 		}
 
-		s.data[urlModel.ID] = urlModel.URL
-		s.counter++
+		userID := urlModel.UserID
+		s.data[urlModel.ID] = urlModel
+		s.userData[userID] = append(s.userData[userID], urlModel)
 
-		if err := s.fileStorage.SaveRecord(file, s.counter, urlModel); err != nil {
+		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
 			return err
 		}
 	}
@@ -87,10 +91,23 @@ func (s *FileStorage) SaveBatch(ctx context.Context, urlModels []models.URLModel
 
 // Get возвращает оригинальный URL по идентификатору.
 func (s *FileStorage) Get(ctx context.Context, id string) (models.URLModel, bool) {
+	s.LoadFromFile()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	url, exists := s.data[id]
-	return models.URLModel{ID: id, URL: url}, exists
+	urlModel, exists := s.data[id]
+	return models.URLModel{ID: id, URL: urlModel.URL, Deleted: urlModel.Deleted}, exists
+}
+
+// GetUserURLs возвращает все URL, сокращённые пользователем.
+func (s *FileStorage) GetUserURLs(ctx context.Context, userID string) ([]models.URLModel, error) {
+	s.LoadFromFile()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	urls, exists := s.userData[userID]
+	if !exists {
+		return nil, nil
+	}
+	return urls, nil
 }
 
 // LoadFromFile загружает данные из файла.
@@ -118,8 +135,8 @@ func (s *FileStorage) LoadFromFile() error {
 	}
 
 	// Валидация формата данных
-	for shortURL, originalURL := range data {
-		if shortURL == "" || originalURL == "" {
+	for shortURL, urlModel := range data {
+		if shortURL == "" || urlModel.URL == "" {
 			return fmt.Errorf("invalid data format: short_url or original_url is empty")
 		}
 	}
@@ -130,5 +147,38 @@ func (s *FileStorage) LoadFromFile() error {
 
 // Ping проверяет соединение с базой данных (для файлового хранилища всегда возвращает nil).
 func (s *FileStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
+	// Загружаем все записи из файла
+	if err := s.LoadFromFile(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, shortURL := range shortURLs {
+		if urlModel, exists := s.data[shortURL]; exists && urlModel.UserID == userID {
+			urlModel.Deleted = true
+			s.data[shortURL] = urlModel
+		}
+	}
+
+	// Открываем файл для записи и очищаем его перед записью
+	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Записываем все обновленные записи обратно в файл
+	for _, urlModel := range s.data {
+		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

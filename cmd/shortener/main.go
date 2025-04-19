@@ -10,6 +10,8 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/db"
 	"github.com/alexuryumtsev/go-shortener/internal/app/logger"
 	"github.com/alexuryumtsev/go-shortener/internal/app/router"
+	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
+	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/file"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/memory"
@@ -44,9 +46,13 @@ func main() {
 		repo = memory.NewInMemoryStorage()
 	}
 
+	// Инициализируем сервис пользователя
+	userService := user.NewUserService("super-secret-key")
+	urlService := url.NewURLService(ctx, repo, cfg.BaseURL, cfg.BatchSize)
+
 	// Запуск сервера
 	fmt.Println("Server started at", cfg.ServerAddress)
-	err = http.ListenAndServe(cfg.ServerAddress, router.ShortenerRouter(cfg, repo))
+	err = http.ListenAndServe(cfg.ServerAddress, router.ShortenerRouter(cfg, repo, userService, urlService))
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

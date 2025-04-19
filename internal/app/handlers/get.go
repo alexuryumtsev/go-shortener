@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
@@ -15,6 +16,13 @@ func GetHandler(storage storage.URLReader) http.HandlerFunc {
 		urlModel, exists := storage.Get(ctx, id)
 		if !exists {
 			http.Error(w, "URL not found", http.StatusNotFound)
+			return
+		}
+
+		log.Printf("Redirecting to %v", urlModel)
+
+		if urlModel.Deleted {
+			http.Error(w, "This URL is no longer available as it has been deleted by the owner", http.StatusGone)
 			return
 		}
 
