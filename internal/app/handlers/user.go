@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/alexuryumtsev/go-shortener/config"
+	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
@@ -14,7 +16,7 @@ type UserURL struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, baseURL string) http.HandlerFunc {
+func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userService.GetUserIDFromCookie(r)
 		urls, err := repo.GetUserURLs(r.Context(), userID)
@@ -28,7 +30,7 @@ func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, b
 			return
 		}
 
-		baseURL := strings.TrimSuffix(baseURL, "/")
+		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")
 		var userURLs []UserURL
 		for _, url := range urls {
 			if url.Deleted {
@@ -45,7 +47,7 @@ func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, b
 	}
 }
 
-func DeleteUserURLsHandler(repo storage.URLStorage, userService user.UserService) http.HandlerFunc {
+func DeleteUserURLsHandler(urlService url.URLService, userService user.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var shortURLs []string
 		if err := json.NewDecoder(r.Body).Decode(&shortURLs); err != nil {
@@ -55,54 +57,10 @@ func DeleteUserURLsHandler(repo storage.URLStorage, userService user.UserService
 
 		userID := userService.GetUserIDFromCookie(r)
 
-		// Создаем каналы для передачи идентификаторов URL и завершения работы
-		idChan := make(chan string, len(shortURLs))
-		done := make(chan struct{})
-		quit := make(chan struct{})
-
-		// Запускаем горутину для заполнения канала идентификаторами
-		go func() {
-			defer close(idChan)
-			for _, shortURL := range shortURLs {
-				select {
-				case idChan <- shortURL:
-				case <-quit:
-					return
-				}
-			}
-		}()
-
-		// Запускаем горутину для удаления URL
-		go func() {
-			defer close(done)
-			var batch []string
-			for {
-				select {
-				case id, ok := <-idChan:
-					if !ok {
-						// Канал закрыт, обновляем оставшиеся идентификаторы
-						if len(batch) > 0 {
-							repo.DeleteUserURLs(r.Context(), userID, batch)
-						}
-						return
-					}
-					batch = append(batch, id)
-					// Если буфер заполнен, выполняем обновление
-					if len(batch) >= 10 {
-						repo.DeleteUserURLs(r.Context(), userID, batch)
-						batch = batch[:0]
-					}
-				case <-quit:
-					return
-				}
-			}
-		}()
-
-		// Ожидаем завершения удаления
-		<-done
-
-		// Закрываем канал quit, чтобы завершить все горутины
-		close(quit)
+		if err := urlService.DeleteUserURLsBatch(r.Context(), userID, shortURLs); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 	}

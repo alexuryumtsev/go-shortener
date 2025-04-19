@@ -9,6 +9,7 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/handlers"
 	"github.com/alexuryumtsev/go-shortener/internal/app/logger"
 	"github.com/alexuryumtsev/go-shortener/internal/app/middleware"
+	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/file"
@@ -16,7 +17,7 @@ import (
 )
 
 // ShortenerRouter создает маршруты для приложения.
-func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService user.UserService) chi.Router {
+func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService user.UserService, urlService url.URLService) chi.Router {
 	// Загрузка данных из файла, если используется файловое хранилище.
 	if fileRepo, ok := repo.(*file.FileStorage); ok {
 		if err := fileRepo.LoadFromFile(); err != nil {
@@ -37,13 +38,13 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 	})
 
 	r.Route("/", func(r chi.Router) {
-		r.Post("/", handlers.PostHandler(repo, userService, cfg.BaseURL))
+		r.Post("/", handlers.PostHandler(repo, userService, cfg))
 		r.Get("/{id}", handlers.GetHandler(repo))
 		r.Get("/ping", handlers.PingHandler(repo))
-		r.Get("/api/user/urls", handlers.GetUserURLsHandler(repo, userService, cfg.BaseURL))
-		r.Delete("/api/user/urls", handlers.DeleteUserURLsHandler(repo, userService))
-		r.Post("/api/shorten", handlers.PostJSONHandler(repo, userService, cfg.BaseURL))
-		r.Post("/api/shorten/batch", handlers.PostBatchHandler(repo, userService, cfg.BaseURL))
+		r.Get("/api/user/urls", handlers.GetUserURLsHandler(repo, userService, cfg))
+		r.Delete("/api/user/urls", handlers.DeleteUserURLsHandler(urlService, userService))
+		r.Post("/api/shorten", handlers.PostJSONHandler(repo, userService, cfg))
+		r.Post("/api/shorten/batch", handlers.PostBatchHandler(repo, userService, cfg))
 	})
 
 	return r

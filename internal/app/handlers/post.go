@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/middleware"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
@@ -14,7 +15,7 @@ import (
 )
 
 // PostHandler обрабатывает POST-запросы для создания короткого URL.
-func PostHandler(storage storage.URLWriter, userService user.UserService, baseURL string) http.HandlerFunc {
+func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -26,7 +27,7 @@ func PostHandler(storage storage.URLWriter, userService user.UserService, baseUR
 		ctx := r.Context()
 		originalURL := strings.TrimSpace(string(body))
 		userID := userService.GetUserIDFromCookie(r)
-		shortenedURL, err := url.NewURLService(ctx, storage, baseURL).ShortenerURL(originalURL, userID)
+		shortenedURL, err := url.NewURLService(ctx, storage, cfg.BaseURL, cfg.BatchSize).ShortenerURL(originalURL, userID)
 
 		if err != nil {
 			middleware.ProcessError(w, err, shortenedURL, true)
@@ -39,7 +40,7 @@ func PostHandler(storage storage.URLWriter, userService user.UserService, baseUR
 }
 
 // PostJSONHandler обрабатывает POST-запросы для создания короткого URL в формате JSON.
-func PostJSONHandler(storage storage.URLWriter, userService user.UserService, baseURL string) http.HandlerFunc {
+func PostJSONHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.RequestBody
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -50,7 +51,7 @@ func PostJSONHandler(storage storage.URLWriter, userService user.UserService, ba
 
 		ctx := r.Context()
 		userID := userService.GetUserIDFromCookie(r)
-		shortenedURL, err := url.NewURLService(ctx, storage, baseURL).ShortenerURL(req.URL, userID)
+		shortenedURL, err := url.NewURLService(ctx, storage, cfg.BaseURL, cfg.BatchSize).ShortenerURL(req.URL, userID)
 
 		if err != nil {
 			middleware.ProcessError(w, err, shortenedURL, false)
@@ -68,9 +69,9 @@ func PostJSONHandler(storage storage.URLWriter, userService user.UserService, ba
 }
 
 // PostBatchHandler обрабатывает POST-запросы для создания множества коротких URL.
-func PostBatchHandler(repo storage.URLStorage, userService user.UserService, baseURL string) http.HandlerFunc {
+func PostBatchHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		baseURL = strings.TrimSuffix(baseURL, "/")
+		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")
 
 		var batchModels []models.URLBatchModel
 		if err := json.NewDecoder(r.Body).Decode(&batchModels); err != nil {
@@ -84,7 +85,7 @@ func PostBatchHandler(repo storage.URLStorage, userService user.UserService, bas
 		}
 
 		ctx := r.Context()
-		urlService := url.NewURLService(ctx, repo, baseURL)
+		urlService := url.NewURLService(ctx, repo, baseURL, cfg.BatchSize)
 		userID := userService.GetUserIDFromCookie(r)
 		shortenedURLs, err := urlService.SaveBatchShortenerURL(batchModels, userID)
 

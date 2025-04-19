@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
@@ -17,6 +18,7 @@ import (
 func TestGetUserURLsHandler(t *testing.T) {
 	// тестовое хранилище и добавляем тестовые данные.
 	baseURL := "http://localhost"
+	config := &config.Config{BaseURL: baseURL}
 	userID := "test-user"
 	repo := storage.NewMockStorage()
 	repo.Save(context.Background(), models.URLModel{ID: "0dd11111", URL: "https://practicum.yandex.ru/", UserID: userID})
@@ -24,7 +26,7 @@ func TestGetUserURLsHandler(t *testing.T) {
 	// Инициализация маршрутизатора.
 	r := chi.NewRouter()
 	mockUserService := user.NewMockUserService(userID)
-	r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, baseURL))
+	r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, config))
 
 	type want struct {
 		code        int

@@ -22,7 +22,7 @@ func GetHandler(storage storage.URLReader) http.HandlerFunc {
 		log.Printf("Redirecting to %v", urlModel)
 
 		if urlModel.Deleted {
-			http.Error(w, "URL has been deleted", http.StatusGone)
+			http.Error(w, "This URL is no longer available as it has been deleted by the owner", http.StatusGone)
 			return
 		}
 

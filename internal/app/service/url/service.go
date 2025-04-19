@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
@@ -17,21 +18,24 @@ import (
 type URLService interface {
 	ShortenerURL(originalURL, userID string) (string, error)
 	SaveBatchShortenerURL(batchModels []models.URLBatchModel, userID string) ([]string, error)
+	DeleteUserURLsBatch(ctx context.Context, userID string, shortURLs []string) error
 }
 
 // urlService реализация URLService
 type urlService struct {
-	ctx     context.Context
-	storage storage.URLWriter
-	baseURL string
+	ctx       context.Context
+	storage   storage.URLWriter
+	baseURL   string
+	batchSize int
 }
 
 // NewURLService конструктор URLService
-func NewURLService(ctx context.Context, storage storage.URLWriter, baseURL string) URLService {
+func NewURLService(ctx context.Context, storage storage.URLWriter, baseURL string, batchSize int) URLService {
 	return &urlService{
-		ctx:     ctx,
-		storage: storage,
-		baseURL: strings.TrimSuffix(baseURL, "/"),
+		ctx:       ctx,
+		storage:   storage,
+		baseURL:   strings.TrimSuffix(baseURL, "/"),
+		batchSize: batchSize,
 	}
 }
 
@@ -69,7 +73,7 @@ func (s *urlService) SaveBatchShortenerURL(batchModels []models.URLBatchModel, u
 
 	var shortenedURLs []string
 	for _, urlModel := range urlModels {
-		shortenedURLs = append(shortenedURLs, s.baseURL + "/" + urlModel.ID)
+		shortenedURLs = append(shortenedURLs, s.baseURL+"/"+urlModel.ID)
 	}
 
 	err := s.storage.SaveBatch(s.ctx, urlModels)
@@ -82,6 +86,72 @@ func (s *urlService) SaveBatchShortenerURL(batchModels []models.URLBatchModel, u
 	}
 
 	return shortenedURLs, nil
+}
+
+func (s *urlService) DeleteUserURLsBatch(ctx context.Context, userID string, shortURLs []string) error {
+	// Create timeout context
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	idChan := make(chan string, len(shortURLs))
+	done := make(chan struct{})
+	errs := make(chan error, 1)
+
+	// Producer goroutine
+	go func() {
+		defer close(idChan)
+		for _, shortURL := range shortURLs {
+			select {
+			case idChan <- shortURL:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Consumer goroutine
+	go func() {
+		defer close(done)
+		var batch []string
+		for {
+			select {
+			case id, ok := <-idChan:
+				if !ok {
+					if len(batch) > 0 {
+						if err := s.storage.DeleteUserURLs(ctx, userID, batch); err != nil {
+							errs <- fmt.Errorf("failed to delete batch: %w", err)
+							return
+						}
+					}
+					return
+				}
+				batch = append(batch, id)
+				if len(batch) >= s.batchSize {
+					if err := s.storage.DeleteUserURLs(ctx, userID, batch); err != nil {
+						errs <- fmt.Errorf("failed to delete batch: %w", err)
+						return
+					}
+					batch = batch[:0]
+				}
+			case <-ctx.Done():
+				errs <- ctx.Err()
+				return
+			}
+		}
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case <-done:
+		select {
+		case err := <-errs:
+			return err
+		default:
+			return nil
+		}
+	case <-ctx.Done():
+		return fmt.Errorf("operation timed out: %w", ctx.Err())
+	}
 }
 
 // GenerateID создает короткий идентификатор для URL

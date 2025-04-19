@@ -3,7 +3,6 @@ package file
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 
@@ -170,7 +169,6 @@ func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortUR
 	// Открываем файл для записи и очищаем его перед записью
 	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		log.Printf("failed to open file: %v", err)
 		return err
 	}
 	defer file.Close()

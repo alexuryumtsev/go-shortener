@@ -108,12 +108,15 @@ func (s *DatabaseStorage) DeleteUserURLs(ctx context.Context, userID string, sho
 	}
 	defer tx.Rollback(ctx)
 
-	for _, shortURL := range shortURLs {
-		query := `UPDATE urls SET is_deleted = true WHERE user_id = $1 AND short_url = $2`
-		_, err = tx.Exec(ctx, query, userID, shortURL)
-		if err != nil {
-			return fmt.Errorf("failed to delete URLs: %w", err)
-		}
+	query := `
+        UPDATE urls
+        SET is_deleted = true
+        WHERE user_id = $1
+        AND short_url = ANY($2)`
+
+	_, err = tx.Exec(ctx, query, userID, shortURLs)
+	if err != nil {
+		return fmt.Errorf("failed to delete URLs: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
@@ -22,7 +23,8 @@ func TestPostHandler(t *testing.T) {
 	// тестовое хранилище.
 	repo := storage.NewMockStorage()
 	mockUserService := user.NewMockUserService(userID)
-	handler := PostHandler(repo, mockUserService, "http://localhost:8080/")
+	config := &config.Config{BaseURL: "http://localhost:8080/"}
+	handler := PostHandler(repo, mockUserService, config)
 
 	type want struct {
 		code        int
@@ -80,7 +82,8 @@ func TestPostJsonHandler(t *testing.T) {
 	// тестовое хранилище.
 	repo := storage.NewMockStorage()
 	mockUserService := user.NewMockUserService(userID)
-	handler := PostJSONHandler(repo, mockUserService, "http://localhost:8080/")
+	config := &config.Config{BaseURL: "http://localhost:8080/"}
+	handler := PostJSONHandler(repo, mockUserService, config)
 
 	type want struct {
 		code         int
