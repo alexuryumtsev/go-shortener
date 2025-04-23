@@ -16,8 +16,8 @@ import (
 const (
 	defaultTestDBHost = "localhost"
 	defaultTestDBPort = "5432"
-	defaultTestDBUser = "postgres"
-	defaultTestDBPass = "postgres"
+	defaultTestDBUser = "test"
+	defaultTestDBPass = "test"
 )
 
 func setupTestDB(t *testing.T) (*DatabaseStorage, func()) {
