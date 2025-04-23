@@ -145,3 +145,70 @@ func TestPostJsonHandler(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkPostHandlers(b *testing.B) {
+	// Подготовка тестовых данных
+	userID := "test-user"
+	repo := storage.NewMockStorage()
+	mockUserService := user.NewMockUserService(userID)
+	config := &config.Config{BaseURL: "http://localhost:8080/"}
+
+	// Подготовка обработчиков
+	plainHandler := PostHandler(repo, mockUserService, config)
+	jsonHandler := PostJSONHandler(repo, mockUserService, config)
+
+	// Тестовые данные
+	testURL := "https://practicum.yandex.ru/"
+	jsonBody := models.RequestBody{URL: testURL}
+	jsonData, _ := json.Marshal(jsonBody)
+
+	benchmarks := []struct {
+		name    string
+		handler http.HandlerFunc
+		path    string
+		body    []byte
+	}{
+		{
+			name:    "Plain POST Handler",
+			handler: plainHandler,
+			path:    "/",
+			body:    []byte(testURL),
+		},
+		{
+			name:    "JSON POST Handler",
+			handler: jsonHandler,
+			path:    "/api/shorten",
+			body:    jsonData,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			// Сброс таймера перед измерениями
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				// Создаем новый запрос для каждой итерации
+				req := httptest.NewRequest(http.MethodPost, bm.path, bytes.NewReader(bm.body))
+				if bm.name == "JSON POST Handler" {
+					req.Header.Set("Content-Type", "application/json")
+				}
+				rr := httptest.NewRecorder()
+
+				// Выполняем запрос
+				bm.handler(rr, req)
+
+				// Проверяем статус код
+				if status := rr.Code; status != http.StatusCreated {
+					b.Fatalf("handler returned wrong status code: got %v want %v",
+						status, http.StatusCreated)
+				}
+
+				// Очищаем тело ответа
+				res := rr.Result()
+				io.Copy(io.Discard, res.Body)
+				res.Body.Close()
+			}
+		})
+	}
+}

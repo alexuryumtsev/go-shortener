@@ -73,3 +73,45 @@ func TestGzipMiddleware(t *testing.T) {
 		})
 	}
 }
+
+// ...existing code...
+
+func BenchmarkGzipMiddleware(b *testing.B) {
+	handler := GzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"message": "hello, world", "data": "{"key": "value"}"}`))
+	}))
+
+	benchmarks := []struct {
+		name           string
+		acceptEncoding string
+	}{
+		{
+			name:           "With Gzip",
+			acceptEncoding: "gzip",
+		},
+		{
+			name:           "Without Gzip",
+			acceptEncoding: "",
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			// Reset timer before each benchmark iteration
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				req.Header.Set("Accept-Encoding", bm.acceptEncoding)
+				rr := httptest.NewRecorder()
+
+				handler.ServeHTTP(rr, req)
+
+				res := rr.Result()
+				_, _ = io.Copy(io.Discard, res.Body)
+				res.Body.Close()
+			}
+		})
+	}
+}
