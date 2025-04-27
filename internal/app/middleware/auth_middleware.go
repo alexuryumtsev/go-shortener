@@ -9,9 +9,6 @@ import (
 
 const cookieName = "auth_token"
 
-// AuthMiddleware проверяет аутентификацию пользователя.
-// Если пользователь не аутентифицирован, создаёт новый идентификатор и cookie.
-// Добавляет информацию о пользователе в контекст запроса.
 func AuthMiddleware(userService user.UserService, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(cookieName)
