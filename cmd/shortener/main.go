@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/db"

@@ -15,6 +15,8 @@ import (
 )
 
 // PostHandler обрабатывает POST-запросы для создания короткого URL.
+// Принимает тело запроса с оригинальным URL в текстовом формате.
+// Возвращает сокращённый URL в текстовом формате.
 func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -40,6 +42,8 @@ func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *c
 }
 
 // PostJSONHandler обрабатывает POST-запросы для создания короткого URL в формате JSON.
+// Принимает тело запроса в формате JSON с полем "url".
+// Возвращает сокращённый URL в формате JSON с полем "result".
 func PostJSONHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.RequestBody
@@ -69,6 +73,8 @@ func PostJSONHandler(storage storage.URLWriter, userService user.UserService, cf
 }
 
 // PostBatchHandler обрабатывает POST-запросы для создания множества коротких URL.
+// Принимает массив объектов в формате JSON с полями "correlation_id" и "original_url".
+// Возвращает массив объектов в формате JSON с полями "correlation_id" и "short_url".
 func PostBatchHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")
