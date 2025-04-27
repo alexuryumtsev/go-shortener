@@ -3,7 +3,6 @@ package router
 import (
 	"log"
 	"net/http"
-	"net/http/pprof"
 
 	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/compress"
@@ -39,9 +38,6 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 	})
 
 	r.Route("/", func(r chi.Router) {
-		r.HandleFunc("/debug/pprof/*", pprof.Index)
-		r.Get("/debug/pprof/profile", pprof.Profile)
-
 		r.Post("/", handlers.PostHandler(repo, userService, cfg))
 		r.Get("/{id}", handlers.GetHandler(repo))
 		r.Get("/ping", handlers.PingHandler(repo))
