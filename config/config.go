@@ -9,6 +9,8 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/validator"
 )
 
+// Config содержит настройки конфигурации приложения.
+// Включает параметры сервера, базы данных и другие настройки.
 type Config struct {
 	ServerAddress   string // Адрес запуска HTTP-сервера
 	BaseURL         string // Базовый адрес для сокращённых URL
@@ -26,6 +28,9 @@ const (
 	defaultBatchSize     = 10
 )
 
+// InitConfig инициализирует конфигурацию приложения.
+// Читает параметры из переменных окружения и флагов командной строки.
+// Возвращает указатель на Config и ошибку в случае некорректных параметров.
 func InitConfig() (*Config, error) {
 	cfg := &Config{}
 
