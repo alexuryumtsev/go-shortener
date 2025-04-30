@@ -185,6 +185,7 @@ func BenchmarkPostHandlers(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			// Сброс таймера перед измерениями
+			b.StopTimer() // Останавливаем таймер перед началом итерации
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
@@ -195,8 +196,9 @@ func BenchmarkPostHandlers(b *testing.B) {
 				}
 				rr := httptest.NewRecorder()
 
-				// Выполняем запрос
-				bm.handler(rr, req)
+				b.StartTimer()      // Начинаем измерение
+				bm.handler(rr, req) // Выполняем запрос
+				b.StopTimer()       // Останавливаем измерение
 
 				// Проверяем статус код
 				if status := rr.Code; status != http.StatusCreated {

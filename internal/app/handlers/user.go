@@ -16,6 +16,24 @@ type UserURL struct {
 	OriginalURL string `json:"original_url"`
 }
 
+// GetUserURLsHandler возвращает все URL текущего пользователя.
+//
+// Принимает:
+//   - Cookie: auth_token - JWT токен для аутентификации пользователя
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 200 OK
+//     Content-Type: application/json
+//     Тело: [
+//       {"short_url": "http://shortener.com/abc", "original_url": "https://example1.com"},
+//       {"short_url": "http://shortener.com/def", "original_url": "https://example2.com"}
+//     ]
+//   - Если URL не найдены:
+//     Код: 204 No Content
+//   - В случае ошибки:
+//     Код: 401 Unauthorized - если токен отсутствует или невалиден
+//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := userService.GetUserIDFromCookie(r)
@@ -47,6 +65,20 @@ func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, c
 	}
 }
 
+// DeleteUserURLsHandler удаляет URL пользователя.
+//
+// Принимает:
+//   - Cookie: auth_token - JWT токен для аутентификации пользователя
+//   - Content-Type: application/json
+//   - Тело: ["url_id1", "url_id2", ...]
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 202 Accepted
+//   - В случае ошибки:
+//     Код: 401 Unauthorized - если токен отсутствует или невалиден
+//     Код: 400 Bad Request - при невалидном JSON
+//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func DeleteUserURLsHandler(urlService url.URLService, userService user.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var shortURLs []string

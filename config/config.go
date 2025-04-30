@@ -12,11 +12,29 @@ import (
 // Config содержит настройки конфигурации приложения.
 // Включает параметры сервера, базы данных и другие настройки.
 type Config struct {
-	ServerAddress   string // Адрес запуска HTTP-сервера
-	BaseURL         string // Базовый адрес для сокращённых URL
-	FileStoragePath string // Путь к файлу хранилища
-	DatabaseDSN     string // подключения к PostgreSQL
-	BatchSize       int    // Размер батча для пакетных операций
+	// ServerAddress определяет адрес запуска HTTP-сервера
+	// По умолчанию: ":8080"
+	ServerAddress string
+
+	// BaseURL определяет базовый адрес для сокращённых URL
+	// По умолчанию: "http://localhost:8080/"
+	BaseURL string
+
+	// FileStoragePath указывает путь к файлу хранилища
+	// По умолчанию: "/tmp/storage.json"
+	FileStoragePath string
+
+	// DatabaseDSN определяет строку подключения к PostgreSQL
+	// По умолчанию: "" (пустая строка)
+	DatabaseDSN string
+
+	// BatchSize определяет размер батча для пакетных операций
+	// По умолчанию: 10
+	BatchSize int
+
+	// Debug включает режим отладки
+	// По умолчанию: false
+	Debug bool
 }
 
 // Значения по умолчанию.
@@ -26,6 +44,7 @@ const (
 	defaultStoragePath   = "/tmp/storage.json"
 	defaultDatabaseDSN   = ""
 	defaultBatchSize     = 10
+	defaultDebug         = false
 )
 
 // InitConfig инициализирует конфигурацию приложения.
@@ -41,6 +60,12 @@ func InitConfig() (*Config, error) {
 	envFileStorageName := os.Getenv("FILE_STORAGE_NAME")
 	envDatabaseDSN := os.Getenv("DATABASE_DSN")
 	envBatchSize := os.Getenv("BATCH_SIZE")
+	envDebug := os.Getenv("DEBUG")
+
+	debug := defaultDebug
+	if envDebug != "" {
+		debug = envDebug == "true"
+	}
 
 	// Определяем флаги
 	flag.StringVar(&cfg.ServerAddress, "a", "", "HTTP server address, host:port")
@@ -48,6 +73,7 @@ func InitConfig() (*Config, error) {
 	flag.StringVar(&cfg.FileStoragePath, "f", "", "Path to file storage")
 	flag.StringVar(&cfg.DatabaseDSN, "d", envDatabaseDSN, "Строка подключения к базе данных (DSN)")
 	flag.IntVar(&cfg.BatchSize, "batch", defaultBatchSize, "Batch size for bulk operations")
+	flag.BoolVar(&cfg.Debug, "debug", debug, "Enable debug mode")
 
 	// Обрабатываем флаги
 	flag.Parse()

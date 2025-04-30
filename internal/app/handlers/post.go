@@ -15,8 +15,18 @@ import (
 )
 
 // PostHandler обрабатывает POST-запросы для создания короткого URL.
-// Принимает тело запроса с оригинальным URL в текстовом формате.
-// Возвращает сокращённый URL в текстовом формате.
+//
+// Принимает:
+//   - Тело запроса: оригинальный URL в текстовом формате
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 201 Created
+//     Тело: сокращённый URL в текстовом формате
+//   - В случае ошибки:
+//     Код: 400 Bad Request - при невалидном теле запроса
+//     Код: 409 Conflict - если URL уже существует
+//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -42,8 +52,20 @@ func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *c
 }
 
 // PostJSONHandler обрабатывает POST-запросы для создания короткого URL в формате JSON.
-// Принимает тело запроса в формате JSON с полем "url".
-// Возвращает сокращённый URL в формате JSON с полем "result".
+//
+// Принимает:
+//   - Content-Type: application/json
+//   - Тело запроса: {"url": "https://example.com"}
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 201 Created
+//     Content-Type: application/json
+//     Тело: {"result": "http://shortener.com/abcdef"}
+//   - В случае ошибки:
+//     Код: 400 Bad Request - при невалидном JSON или отсутствии обязательных полей
+//     Код: 409 Conflict - если URL уже существует
+//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func PostJSONHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.RequestBody
@@ -73,8 +95,26 @@ func PostJSONHandler(storage storage.URLWriter, userService user.UserService, cf
 }
 
 // PostBatchHandler обрабатывает POST-запросы для создания множества коротких URL.
-// Принимает массив объектов в формате JSON с полями "correlation_id" и "original_url".
-// Возвращает массив объектов в формате JSON с полями "correlation_id" и "short_url".
+//
+// Принимает:
+//   - Content-Type: application/json
+//   - Тело запроса: [
+//     {"correlation_id": "1", "original_url": "https://example1.com"},
+//     {"correlation_id": "2", "original_url": "https://example2.com"}
+//     ]
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 201 Created
+//     Content-Type: application/json
+//     Тело: [
+//     {"correlation_id": "1", "short_url": "http://shortener.com/abc"},
+//     {"correlation_id": "2", "short_url": "http://shortener.com/def"}
+//     ]
+//   - В случае ошибки:
+//     Код: 400 Bad Request - при невалидном JSON, пустом батче или отсутствии обязательных полей
+//     Код: 409 Conflict - если один из URL уже существует
+//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func PostBatchHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")

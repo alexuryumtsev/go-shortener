@@ -108,13 +108,17 @@ func BenchmarkGetUserURLsHandler(b *testing.B) {
 			mockUserService := user.NewMockUserService(userID)
 			r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, config))
 
+			// Сброс таймера перед началом измерений
+			b.StopTimer() // Останавливаем таймер перед началом итерации
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
 				rr := httptest.NewRecorder()
 
+				b.StartTimer() // Начинаем измерение
 				r.ServeHTTP(rr, req)
+				b.StopTimer() // Останавливаем измерение
 
 				// Проверяем статус код
 				if status := rr.Code; status != http.StatusOK {

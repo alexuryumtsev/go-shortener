@@ -81,11 +81,17 @@ func BenchmarkFileStorage(b *testing.B) {
 	b.Run("SaveRecord", func(b *testing.B) {
 		fs := NewFileStorage("bench.json")
 		var buf bytes.Buffer
+
+		b.StopTimer() // Останавливаем таймер перед началом итерации
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
 			buf.Reset()
+
+			b.StartTimer() // Начинаем измерение
 			err := fs.SaveRecord(&nopWriteCloser{&buf}, urlModels[i%2])
+			b.StopTimer() // Останавливаем измерение
+
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -96,6 +102,7 @@ func BenchmarkFileStorage(b *testing.B) {
 		fs := NewFileStorage("bench.json")
 		var buf bytes.Buffer
 
+		b.StopTimer() // Останавливаем таймер на время подготовки данных
 		// Подготовка данных для загрузки
 		for _, model := range urlModels {
 			fs.SaveRecord(&nopWriteCloser{&buf}, model)
@@ -105,7 +112,11 @@ func BenchmarkFileStorage(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			reader := bytes.NewReader(data)
+			b.StartTimer() // Начинаем измерение
+
 			_, err := fs.LoadRecords(reader)
+
+			b.StopTimer() // Останавливаем измерение
 			if err != nil {
 				b.Fatal(err)
 			}

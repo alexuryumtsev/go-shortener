@@ -108,13 +108,16 @@ func BenchmarkGetHandler(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			// Сброс таймера перед началом измерений
+			b.StopTimer()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
 				req := httptest.NewRequest(http.MethodGet, bm.requestPath, nil)
 				rr := httptest.NewRecorder()
 
+				b.StartTimer() // Начинаем измерение
 				r.ServeHTTP(rr, req)
+				b.StopTimer() // Останавливаем измерение
 
 				// Проверяем статус код для уверенности в корректной работе
 				if status := rr.Code; status != bm.wantStatus {

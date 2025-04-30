@@ -174,7 +174,8 @@ func BenchmarkGzipMiddleware(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			// Reset timer before each benchmark iteration
+			// Сброс таймера перед началом измерений
+			b.StopTimer() // Останавливаем таймер перед началом итерации
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
@@ -182,7 +183,9 @@ func BenchmarkGzipMiddleware(b *testing.B) {
 				req.Header.Set("Accept-Encoding", bm.acceptEncoding)
 				rr := httptest.NewRecorder()
 
+				b.StartTimer() // Начинаем измерение
 				handler.ServeHTTP(rr, req)
+				b.StopTimer() // Останавливаем измерение
 
 				res := rr.Result()
 				_, _ = io.Copy(io.Discard, res.Body)

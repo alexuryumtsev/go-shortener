@@ -17,6 +17,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// setupProfiling добавляет маршруты для профилирования
+func setupProfiling(r chi.Router) {
+	r.HandleFunc("/debug/pprof/*", pprof.Index)
+	r.Get("/debug/pprof/profile", pprof.Profile)
+}
+
 // ShortenerRouter создает маршруты для приложения.
 func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService user.UserService, urlService url.URLService) chi.Router {
 	// Загрузка данных из файла, если используется файловое хранилище.
@@ -39,8 +45,11 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 	})
 
 	r.Route("/", func(r chi.Router) {
-		r.HandleFunc("/debug/pprof/*", pprof.Index)
-		r.Get("/debug/pprof/profile", pprof.Profile)
+		// Добавляем профилирование только в режиме отладки
+		log.Println(cfg.Debug)
+		if cfg.Debug {
+			setupProfiling(r)
+		}
 
 		r.Post("/", handlers.PostHandler(repo, userService, cfg))
 		r.Get("/{id}", handlers.GetHandler(repo))
