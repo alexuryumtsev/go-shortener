@@ -26,8 +26,8 @@ type UserURL struct {
 //     Код: 200 OK
 //     Content-Type: application/json
 //     Тело: [
-//       {"short_url": "http://shortener.com/abc", "original_url": "https://example1.com"},
-//       {"short_url": "http://shortener.com/def", "original_url": "https://example2.com"}
+//     {"short_url": "http://shortener.com/abc", "original_url": "https://example1.com"},
+//     {"short_url": "http://shortener.com/def", "original_url": "https://example2.com"}
 //     ]
 //   - Если URL не найдены:
 //     Код: 204 No Content
