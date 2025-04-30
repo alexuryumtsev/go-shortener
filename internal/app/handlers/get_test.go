@@ -74,3 +74,57 @@ func TestGetHandler(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkGetHandler(b *testing.B) {
+	// Подготовка тестовых данных
+	id := "test123"
+	repo := storage.NewMockStorage()
+	repo.Save(context.Background(), models.URLModel{
+		ID:  id,
+		URL: "https://practicum.yandex.ru/",
+	})
+
+	// Инициализация маршрутизатора
+	r := chi.NewRouter()
+	r.Get("/{id}", GetHandler(repo))
+
+	benchmarks := []struct {
+		name        string
+		requestPath string
+		wantStatus  int
+	}{
+		{
+			name:        "Existing URL",
+			requestPath: "/" + id,
+			wantStatus:  http.StatusTemporaryRedirect,
+		},
+		{
+			name:        "Non-existing URL",
+			requestPath: "/nonexistent",
+			wantStatus:  http.StatusNotFound,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			// Сброс таймера перед началом измерений
+			b.StopTimer()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest(http.MethodGet, bm.requestPath, nil)
+				rr := httptest.NewRecorder()
+
+				b.StartTimer() // Начинаем измерение
+				r.ServeHTTP(rr, req)
+				b.StopTimer() // Останавливаем измерение
+
+				// Проверяем статус код для уверенности в корректной работе
+				if status := rr.Code; status != bm.wantStatus {
+					b.Fatalf("handler returned wrong status code: got %v want %v",
+						status, bm.wantStatus)
+				}
+			}
+		})
+	}
+}

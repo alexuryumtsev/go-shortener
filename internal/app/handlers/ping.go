@@ -8,6 +8,12 @@ import (
 )
 
 // PingHandler проверяет соединение с базой данных.
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 200 OK
+//   - В случае ошибки:
+//     Код: 500 Internal Server Error - если соединение с БД не установлено
 func PingHandler(repo storage.URLStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Проверяем, является ли хранилище экземпляром DatabaseStorage

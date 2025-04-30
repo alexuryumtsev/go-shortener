@@ -9,6 +9,17 @@ import (
 )
 
 // GetHandler обрабатывает GET-запросы с динамическими id.
+//
+// Принимает:
+//   - URL параметр: id - короткий идентификатор URL
+//
+// Возвращает:
+//   - В случае успеха:
+//     Код: 307 Temporary Redirect
+//     Заголовок: Location содержит оригинальный URL для редиректа
+//   - В случае ошибки:
+//     Код: 404 Not Found - если URL не найден
+//     Код: 410 Gone - если URL был удален владельцем
 func GetHandler(storage storage.URLReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")

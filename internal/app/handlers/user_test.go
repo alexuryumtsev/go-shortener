@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -77,5 +79,61 @@ func TestGetUserURLsHandler(t *testing.T) {
 				assert.Equal(t, tc.want.body, resBody)
 			}
 		})
+	}
+}
+
+func BenchmarkGetUserURLsHandler(b *testing.B) {
+	// Подготовка тестовых данных
+	baseURL := "http://localhost"
+	config := &config.Config{BaseURL: baseURL}
+	userID := "test-user"
+	repo := storage.NewMockStorage()
+
+	// Добавляем разное количество URL для тестирования производительности
+	urlCounts := []int{1, 10, 100}
+
+	for _, count := range urlCounts {
+		// Добавляем указанное количество URL
+		for i := 0; i < count; i++ {
+			repo.Save(context.Background(), models.URLModel{
+				ID:     fmt.Sprintf("id%d", i),
+				URL:    fmt.Sprintf("https://example%d.com", i),
+				UserID: userID,
+			})
+		}
+
+		b.Run(fmt.Sprintf("URLs_%d", count), func(b *testing.B) {
+			// Инициализация маршрутизатора
+			r := chi.NewRouter()
+			mockUserService := user.NewMockUserService(userID)
+			r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, config))
+
+			// Сброс таймера перед началом измерений
+			b.StopTimer() // Останавливаем таймер перед началом итерации
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+				rr := httptest.NewRecorder()
+
+				b.StartTimer() // Начинаем измерение
+				r.ServeHTTP(rr, req)
+				b.StopTimer() // Останавливаем измерение
+
+				// Проверяем статус код
+				if status := rr.Code; status != http.StatusOK {
+					b.Fatalf("handler returned wrong status code: got %v want %v",
+						status, http.StatusOK)
+				}
+
+				// Очищаем тело ответа
+				res := rr.Result()
+				io.Copy(io.Discard, res.Body)
+				res.Body.Close()
+			}
+		})
+
+		// Очищаем хранилище перед следующим тестом
+		repo = storage.NewMockStorage()
 	}
 }

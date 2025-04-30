@@ -3,6 +3,7 @@ package router
 import (
 	"log"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/compress"
@@ -15,6 +16,12 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/file"
 	"github.com/go-chi/chi/v5"
 )
+
+// setupProfiling добавляет маршруты для профилирования
+func setupProfiling(r chi.Router) {
+	r.HandleFunc("/debug/pprof/*", pprof.Index)
+	r.Get("/debug/pprof/profile", pprof.Profile)
+}
 
 // ShortenerRouter создает маршруты для приложения.
 func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService user.UserService, urlService url.URLService) chi.Router {
@@ -38,6 +45,12 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 	})
 
 	r.Route("/", func(r chi.Router) {
+		// Добавляем профилирование только в режиме отладки
+		log.Println(cfg.Debug)
+		if cfg.Debug {
+			setupProfiling(r)
+		}
+
 		r.Post("/", handlers.PostHandler(repo, userService, cfg))
 		r.Get("/{id}", handlers.GetHandler(repo))
 		r.Get("/ping", handlers.PingHandler(repo))

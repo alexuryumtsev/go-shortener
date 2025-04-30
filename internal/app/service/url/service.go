@@ -14,7 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// URLService интерфейс для сокращения URL
+// URLService определяет интерфейс для работы с URL.
+// Предоставляет методы для сокращения URL и пакетной обработки.
 type URLService interface {
 	ShortenerURL(originalURL, userID string) (string, error)
 	SaveBatchShortenerURL(batchModels []models.URLBatchModel, userID string) ([]string, error)
@@ -29,7 +30,9 @@ type urlService struct {
 	batchSize int
 }
 
-// NewURLService конструктор URLService
+// NewURLService создаёт новый экземпляр сервиса для работы с URL.
+// Принимает контекст, хранилище, базовый URL и размер пакета.
+// Возвращает реализацию интерфейса URLService.
 func NewURLService(ctx context.Context, storage storage.URLWriter, baseURL string, batchSize int) URLService {
 	return &urlService{
 		ctx:       ctx,
