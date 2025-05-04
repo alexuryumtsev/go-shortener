@@ -112,6 +112,7 @@ func (s *DatabaseStorage) Ping(ctx context.Context) error {
 	return s.db.Ping(ctx)
 }
 
+// DeleteUserURLs удаляет URL для данного userID из базы данных.
 func (s *DatabaseStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
 	tx, err := s.db.Pool.Begin(ctx)
 	if err != nil {

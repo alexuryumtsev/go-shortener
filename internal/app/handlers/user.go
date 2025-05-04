@@ -12,6 +12,7 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
 
+// UserURL представляет собой структуру для хранения информации о коротком и оригинальном URL пользователя.
 type UserURL struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`

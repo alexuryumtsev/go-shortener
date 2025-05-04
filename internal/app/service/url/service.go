@@ -92,6 +92,7 @@ func (s *urlService) SaveBatchShortenerURL(batchModels []models.URLBatchModel, u
 	return shortenedURLs, nil
 }
 
+// DeleteUserURLsBatch удаляет пакет URL для пользователя
 func (s *urlService) DeleteUserURLsBatch(ctx context.Context, userID string, shortURLs []string) error {
 	// Create timeout context
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

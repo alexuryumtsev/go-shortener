@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Database представляет собой структуру для работы с базой данных PostgreSQL
 type Database struct {
 	Pool *pgxpool.Pool
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// GzipMiddleware обрабатывает сжатые запросы и ответы с использованием gzip.
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Обрабатываем сжатые запросы (Content-Encoding: gzip)
@@ -54,6 +55,7 @@ type conditionalCompressWriter struct {
 	writer *gzip.Writer
 }
 
+// WriteHeader записывает заголовки ответа и устанавливает Content-Encoding, если это необходимо.
 func (cw *conditionalCompressWriter) WriteHeader(statusCode int) {
 	contentType := cw.Header().Get("Content-Type")
 
@@ -65,6 +67,7 @@ func (cw *conditionalCompressWriter) WriteHeader(statusCode int) {
 	cw.ResponseWriter.WriteHeader(statusCode)
 }
 
+// Write записывает данные в gzip-формате, если это необходимо.
 func (cw *conditionalCompressWriter) Write(p []byte) (int, error) {
 	if cw.Header().Get("Content-Encoding") == "gzip" {
 		return cw.writer.Write(p)
@@ -72,6 +75,7 @@ func (cw *conditionalCompressWriter) Write(p []byte) (int, error) {
 	return cw.ResponseWriter.Write(p)
 }
 
+// Close закрывает gzip-Writer, если он был открыт.
 func (cw *conditionalCompressWriter) Close() error {
 	if cw.Header().Get("Content-Encoding") == "gzip" {
 		return cw.writer.Close()
@@ -85,6 +89,7 @@ type compressReader struct {
 	zr *gzip.Reader
 }
 
+// newCompressReader создает новый compressReader для распаковки gzip-данных.
 func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	if r == nil {
 		return nil, nil // Если тела запроса нет, возвращаем nil.
@@ -106,10 +111,12 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
+// Read читает данные из gzip-Reader.
 func (cr *compressReader) Read(p []byte) (int, error) {
 	return cr.zr.Read(p)
 }
 
+// Close закрывает gzip-Reader и оригинальный Reader.
 func (cr *compressReader) Close() error {
 	if err := cr.zr.Close(); err != nil {
 		return err
