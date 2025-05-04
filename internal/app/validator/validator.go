@@ -1,3 +1,4 @@
+// Package validator содержит функции для валидации входных данных.
 package validator
 
 import (

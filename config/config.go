@@ -1,3 +1,4 @@
+// Package config содержит функции и структуры для работы с конфигурацией приложения.
 package config
 
 import (
@@ -119,7 +120,8 @@ func InitConfig() (*Config, error) {
 
 	// Установка размера батча из переменной окружения, если указана
 	if envBatchSize != "" {
-		if size, err := strconv.Atoi(envBatchSize); err == nil {
+		size, parseErr := strconv.Atoi(envBatchSize) // используем другое имя переменной
+		if parseErr == nil {
 			cfg.BatchSize = size
 		}
 	}

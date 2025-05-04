@@ -1,3 +1,4 @@
+// Package storage предоставляет интерфейсы для работы с URL.
 package storage
 
 import (

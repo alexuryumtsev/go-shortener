@@ -1,3 +1,4 @@
+// Package url предоставляет реализацию сервиса для работы с URL.
 package url
 
 import (

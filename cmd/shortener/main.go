@@ -35,9 +35,9 @@ func main() {
 
 	var repo storage.URLStorage
 	if cfg.DatabaseDSN != "" {
-		pool, err := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
-		if err != nil {
-			log.Fatalf("Failed connect to db: %v", err)
+		pool, errConnect := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
+		if errConnect != nil {
+			log.Fatalf("Failed connect to db: %v", errConnect)
 		}
 		defer pool.Close()
 		repo = pg.NewDatabaseStorage(pool)

@@ -1,3 +1,4 @@
+// Package memory предоставляет реализацию хранилища в памяти для сокращённых URL.
 package memory
 
 import (

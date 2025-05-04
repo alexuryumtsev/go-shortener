@@ -1,3 +1,4 @@
+// Package storage содержит реализацию моков для хранилища данных.
 package storage
 
 import (

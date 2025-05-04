@@ -1,7 +1,9 @@
+// Package compress предоставляет middleware для сжатия и распаковки данных в HTTP-запросах и ответах.
 package compress
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -17,17 +19,29 @@ func GzipMiddleware(next http.Handler) http.Handler {
 				return
 			}
 			r.Body = cr
-			defer cr.Close()
+			defer func() {
+				if err := cr.Close(); err != nil {
+					// Логируем ошибку закрытия, но продолжаем выполнение
+					// так как основной запрос уже обработан
+					w.Header().Add("Warning", "Failed to close compress reader")
+				}
+			}()
 		}
 
 		// Обрабатываем сжатые ответы (Accept-Encoding: gzip)
 		ow := w
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			ow = &conditionalCompressWriter{
+			cw := &conditionalCompressWriter{
 				ResponseWriter: w,
 				writer:         gzip.NewWriter(w),
 			}
-			defer ow.(*conditionalCompressWriter).Close()
+			ow = cw
+			defer func() {
+				if err := cw.Close(); err != nil {
+					// Логируем ошибку закрытия через warning header
+					w.Header().Add("Warning", "Failed to close compress writer")
+				}
+			}()
 		}
 
 		next.ServeHTTP(ow, r)
@@ -75,11 +89,17 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	if r == nil {
 		return nil, nil // Если тела запроса нет, возвращаем nil.
 	}
+
 	zr, err := gzip.NewReader(r)
 	if err != nil {
-		r.Close()
+		closeErr := r.Close()
+		if closeErr != nil {
+			// Комбинируем ошибки, если обе произошли
+			return nil, fmt.Errorf("gzip error: %v, close error: %v", err, closeErr)
+		}
 		return nil, err
 	}
+
 	return &compressReader{
 		r:  r,
 		zr: zr,

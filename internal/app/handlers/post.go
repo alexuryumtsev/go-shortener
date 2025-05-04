@@ -1,8 +1,10 @@
+// Package handlers содержит обработчики HTTP-запросов для работы с URL-адресами.
 package handlers
 
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -29,20 +31,26 @@ import (
 //     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func PostHandler(storage storage.URLWriter, userService user.UserService, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
+		body, readErr := io.ReadAll(r.Body)
+		if readErr != nil {
 			http.Error(w, "Failed to read request body", http.StatusBadRequest)
 			return
 		}
-		defer r.Body.Close()
+
+		defer func() {
+			if closeErr := r.Body.Close(); closeErr != nil {
+				// Log the error but don't fail the request as it's already processed
+				log.Printf("Error closing request body: %v", closeErr)
+			}
+		}()
 
 		ctx := r.Context()
 		originalURL := strings.TrimSpace(string(body))
 		userID := userService.GetUserIDFromCookie(r)
-		shortenedURL, err := url.NewURLService(ctx, storage, cfg.BaseURL, cfg.BatchSize).ShortenerURL(originalURL, userID)
+		shortenedURL, shortenerErr := url.NewURLService(ctx, storage, cfg.BaseURL, cfg.BatchSize).ShortenerURL(originalURL, userID)
 
-		if err != nil {
-			middleware.ProcessError(w, err, shortenedURL, true)
+		if shortenerErr != nil {
+			middleware.ProcessError(w, shortenerErr, shortenedURL, true)
 			return
 		}
 

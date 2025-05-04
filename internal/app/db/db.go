@@ -1,3 +1,4 @@
+// Package db предоставляет функции для работы с базой данных PostgreSQL
 package db
 
 import (

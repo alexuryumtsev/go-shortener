@@ -1,6 +1,9 @@
+// Package logger содержит функции для инициализации и использования логгирования в приложении.
+// Он использует библиотеку zap для создания логов и middleware для обработки HTTP-запросов.
 package logger
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -10,8 +13,21 @@ import (
 var sugarLogger *zap.SugaredLogger
 
 func InitLogger() {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+	logger, err := zap.NewProduction()
+	if err != nil {
+		// В случае ошибки инициализации используем стандартный логгер
+		log.Printf("Failed to initialize zap logger: %v", err)
+		return
+	}
+
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			// Логируем ошибку Sync(), но не прерываем работу,
+			// так как логгер уже инициализирован
+			log.Printf("Failed to sync logger: %v", err)
+		}
+	}()
+
 	sugarLogger = logger.Sugar()
 }
 

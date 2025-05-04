@@ -1,3 +1,4 @@
+// Package middleware содержит функции промежуточной обработки HTTP-запросов.
 package middleware
 
 import (
@@ -26,24 +27,31 @@ func ErrorMiddleware(next http.Handler) http.Handler {
 }
 
 // ProcessError — функция для обработки ошибок в контексте работы с БД.
-func ProcessError(w http.ResponseWriter, err error, shortenedURL string, responseString bool) {
+func ProcessError(w http.ResponseWriter, inputErr error, shortenedURL string, responseString bool) {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+	if errors.As(inputErr, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 
 		if responseString {
-			w.Write([]byte(shortenedURL))
+			_, writeErr := w.Write([]byte(shortenedURL))
+			if writeErr != nil {
+				http.Error(w, "Failed to write response", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 
-		json.NewEncoder(w).Encode(models.ResponseBody{
+		if encodeErr := json.NewEncoder(w).Encode(models.ResponseBody{
 			ShortURL: shortenedURL,
-		})
+		}); encodeErr != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
 
 		return
 	}
 
 	// Обработка других ошибок
-	http.Error(w, err.Error(), http.StatusBadRequest)
+	http.Error(w, inputErr.Error(), http.StatusBadRequest)
 }

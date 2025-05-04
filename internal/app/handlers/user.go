@@ -1,3 +1,4 @@
+// Package handlers содержит обработчики HTTP-запросов для работы с пользователями и их URL-адресами.
 package handlers
 
 import (
