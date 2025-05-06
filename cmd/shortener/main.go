@@ -19,7 +19,39 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/pg"
 )
 
+// Информация о сборке
+var (
+	buildVersion string // версия сборки
+	buildDate    string // дата сборки
+	buildCommit  string // коммит, на котором собрана версия
+)
+
+// Функция для вывода информации о сборке
+func printBuildInfo() {
+	version := buildVersion
+	if version == "" {
+		version = "N/A"
+	}
+
+	date := buildDate
+	if date == "" {
+		date = "N/A"
+	}
+
+	commit := buildCommit
+	if commit == "" {
+		commit = "N/A"
+	}
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
+}
+
 func main() {
+	// Вывод информации о сборке
+	printBuildInfo()
+
 	// Инициализируем конфигурацию
 	cfg, err := config.InitConfig()
 	if err != nil {
