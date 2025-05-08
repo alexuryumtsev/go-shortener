@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,131 +8,141 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
+	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
-	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetUserURLsHandler(t *testing.T) {
-	// тестовое хранилище и добавляем тестовые данные.
-	baseURL := "http://localhost"
-	config := &config.Config{BaseURL: baseURL}
-	userID := "test-user"
-	repo := storage.NewMockStorage()
-	repo.Save(context.Background(), models.URLModel{ID: "0dd11111", URL: "https://practicum.yandex.ru/", UserID: userID})
-
-	// Инициализация маршрутизатора.
-	r := chi.NewRouter()
-	mockUserService := user.NewMockUserService(userID)
-	r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, config))
-
-	type want struct {
-		code        int
-		body        []UserURL
-		contentType string
-	}
-
-	testCases := []struct {
-		name   string
-		userID string
-		want   want
+	// Тестовые случаи
+	tests := []struct {
+		name       string
+		userID     string
+		setupMock  func(*url.MockURLService)
+		wantStatus int
+		wantURLs   []models.UserURLModel
 	}{
 		{
-			name:   "Valid User ID",
-			userID: userID,
-			want: want{
-				code: http.StatusOK,
-				body: []UserURL{
-					{
-						ShortURL:    baseURL + "/0dd11111",
-						OriginalURL: "https://practicum.yandex.ru/",
-					},
+			name:   "Valid User with URLs",
+			userID: "test-user",
+			setupMock: func(m *url.MockURLService) {
+				m.AddURL("0dd11111", "https://practicum.yandex.ru/", "test-user")
+			},
+			wantStatus: http.StatusOK,
+			wantURLs: []models.UserURLModel{
+				{
+					ShortURL:    "http://localhost/0dd11111",
+					OriginalURL: "https://practicum.yandex.ru/",
 				},
-				contentType: "application/json",
+			},
+		},
+		{
+			name:   "User with no URLs",
+			userID: "empty-user",
+			setupMock: func(m *url.MockURLService) {
+				// Не добавляем URLs
+			},
+			wantStatus: http.StatusNoContent,
+			wantURLs:   nil,
+		},
+		{
+			name:   "User with deleted URLs",
+			userID: "user-with-deleted",
+			setupMock: func(m *url.MockURLService) {
+				m.AddURL("deleted123", "https://deleted.com/", "user-with-deleted")
+				m.MarkURLAsDeleted("deleted123")
+			},
+			wantStatus: http.StatusOK,
+			wantURLs: []models.UserURLModel{
+				{
+					ShortURL:    "http://localhost/deleted123",
+					OriginalURL: "https://deleted.com/",
+				},
 			},
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// тестовый HTTP-запрос.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Подготовка тестового окружения
+			mockURLService := url.NewMockURLService("http://localhost", nil)
+			tt.setupMock(mockURLService)
+			mockUserService := user.NewMockUserService(tt.userID)
+
+			// Создание маршрутизатора и обработчика
+			r := chi.NewRouter()
+			handler := GetUserURLsHandler(mockURLService, mockUserService)
+			r.Get("/api/user/urls", handler)
+
+			// Создание тестового запроса
 			req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
 			rec := httptest.NewRecorder()
 
-			// Отправляем запрос через маршрутизатор.
+			// Выполнение запроса
 			r.ServeHTTP(rec, req)
 
-			res := rec.Result()
-			defer res.Body.Close()
+			// Проверка результатов
+			assert.Equal(t, tt.wantStatus, rec.Code)
 
-			assert.Equal(t, tc.want.code, res.StatusCode)
-			assert.Equal(t, tc.want.contentType, res.Header.Get("Content-Type"))
+			if tt.wantStatus == http.StatusOK {
+				assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 
-			if tc.want.body != nil {
-				var resBody []UserURL
-				err := json.NewDecoder(res.Body).Decode(&resBody)
+				var gotURLs []models.UserURLModel
+				err := json.NewDecoder(rec.Body).Decode(&gotURLs)
 				assert.NoError(t, err)
-				assert.Equal(t, tc.want.body, resBody)
+				assert.Equal(t, tt.wantURLs, gotURLs)
 			}
 		})
 	}
 }
 
 func BenchmarkGetUserURLsHandler(b *testing.B) {
-	// Подготовка тестовых данных
-	baseURL := "http://localhost"
-	config := &config.Config{BaseURL: baseURL}
-	userID := "test-user"
-	repo := storage.NewMockStorage()
-
-	// Добавляем разное количество URL для тестирования производительности
 	urlCounts := []int{1, 10, 100}
 
 	for _, count := range urlCounts {
-		// Добавляем указанное количество URL
-		for i := 0; i < count; i++ {
-			repo.Save(context.Background(), models.URLModel{
-				ID:     fmt.Sprintf("id%d", i),
-				URL:    fmt.Sprintf("https://example%d.com", i),
-				UserID: userID,
-			})
-		}
-
 		b.Run(fmt.Sprintf("URLs_%d", count), func(b *testing.B) {
-			// Инициализация маршрутизатора
-			r := chi.NewRouter()
-			mockUserService := user.NewMockUserService(userID)
-			r.Get("/api/user/urls", GetUserURLsHandler(repo, mockUserService, config))
+			// Подготовка тестового окружения
+			mockURLService := url.NewMockURLService("http://localhost", nil)
+			userID := "test-user"
 
-			// Сброс таймера перед началом измерений
-			b.StopTimer() // Останавливаем таймер перед началом итерации
+			// Добавление тестовых URL
+			for i := 0; i < count; i++ {
+				mockURLService.AddURL(
+					fmt.Sprintf("id%d", i),
+					fmt.Sprintf("https://example%d.com", i),
+					userID,
+				)
+			}
+
+			mockUserService := user.NewMockUserService(userID)
+			handler := GetUserURLsHandler(mockURLService, mockUserService)
+
+			r := chi.NewRouter()
+			r.Get("/api/user/urls", handler)
+
 			b.ResetTimer()
+			b.StopTimer()
 
 			for i := 0; i < b.N; i++ {
 				req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
-				rr := httptest.NewRecorder()
+				rec := httptest.NewRecorder()
 
-				b.StartTimer() // Начинаем измерение
-				r.ServeHTTP(rr, req)
-				b.StopTimer() // Останавливаем измерение
+				b.StartTimer()
+				r.ServeHTTP(rec, req)
+				b.StopTimer()
 
-				// Проверяем статус код
-				if status := rr.Code; status != http.StatusOK {
+				if rec.Code != http.StatusOK {
 					b.Fatalf("handler returned wrong status code: got %v want %v",
-						status, http.StatusOK)
+						rec.Code, http.StatusOK)
 				}
 
-				// Очищаем тело ответа
-				res := rr.Result()
+				// Очистка ответа
+				res := rec.Result()
 				io.Copy(io.Discard, res.Body)
 				res.Body.Close()
 			}
 		})
-
-		// Очищаем хранилище перед следующим тестом
-		repo = storage.NewMockStorage()
 	}
 }

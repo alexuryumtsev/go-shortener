@@ -9,21 +9,59 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/handlers"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
-	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
+
+// MockURLService - мок-реализация URLService для примеров
+type MockURLService struct{}
+
+func (m *MockURLService) ShortenerURL(ctx context.Context, originalURL, userID string) (string, error) {
+	// Фиксированный ответ для примера
+	return "http://localhost:8080/6bdb5b0e", nil
+}
+
+func (m *MockURLService) SaveBatchShortenerURL(ctx context.Context, batchModels []models.URLBatchModel, userID string) ([]models.BatchResponseModel, error) {
+	// Фиксированный ответ для примера
+	var response []models.BatchResponseModel
+	for i, model := range batchModels {
+		id := fmt.Sprintf("6bdb5b0e%d", i)
+		if i == 1 {
+			id = "e98192e1" // Особый ID для второго элемента
+		}
+		response = append(response, models.BatchResponseModel{
+			CorrelationID: model.CorrelationID,
+			ShortURL:      fmt.Sprintf("http://localhost:8080/%s", id),
+		})
+	}
+	return response, nil
+}
+
+func (m *MockURLService) DeleteUserURLsBatch(ctx context.Context, userID string, shortURLs []string) error {
+	return nil
+}
+
+func (m *MockURLService) GetURLByID(ctx context.Context, id string) (string, bool, error) {
+	return "https://practicum.yandex.ru", true, nil
+}
+
+func (m *MockURLService) GetUserURLs(ctx context.Context, userID string) ([]models.UserURLModel, error) {
+	return []models.UserURLModel{
+		{
+			ShortURL:    "http://localhost:8080/abcdef12",
+			OriginalURL: "https://practicum.yandex.ru",
+		},
+	}, nil
+}
 
 func ExamplePostHandler() {
 	// Инициализация тестового окружения
-	repo := storage.NewMockStorage()
 	userService := user.NewMockUserService("test-user")
-	cfg := &config.Config{BaseURL: "http://localhost:8080"}
+	urlService := &MockURLService{}
 
 	// Создание обработчика
-	handler := handlers.PostHandler(repo, userService, cfg)
+	handler := handlers.PostHandler(urlService, userService)
 
 	// Создание тестового запроса
 	longURL := "https://practicum.yandex.ru"
@@ -46,12 +84,11 @@ func ExamplePostHandler() {
 
 func ExamplePostJSONHandler() {
 	// Инициализация тестового окружения
-	repo := storage.NewMockStorage()
 	userService := user.NewMockUserService("test-user")
-	cfg := &config.Config{BaseURL: "http://localhost:8080"}
+	urlService := &MockURLService{}
 
 	// Создание обработчика
-	handler := handlers.PostJSONHandler(repo, userService, cfg)
+	handler := handlers.PostJSONHandler(urlService, userService)
 
 	// Подготовка JSON запроса
 	reqBody := models.RequestBody{URL: "https://practicum.yandex.ru"}
@@ -78,12 +115,11 @@ func ExamplePostJSONHandler() {
 
 func ExamplePostBatchHandler() {
 	// Инициализация тестового окружения
-	repo := storage.NewMockStorage()
 	userService := user.NewMockUserService("test-user")
-	cfg := &config.Config{BaseURL: "http://localhost:8080"}
+	urlService := &MockURLService{}
 
 	// Создание обработчика
-	handler := handlers.PostBatchHandler(repo, userService, cfg)
+	handler := handlers.PostBatchHandler(urlService, userService)
 
 	// Подготовка пакетного запроса
 	batchRequest := []models.URLBatchModel{
@@ -114,24 +150,16 @@ func ExamplePostBatchHandler() {
 	fmt.Printf("Status: %d\nResponse: %s\n", resp.StatusCode, body)
 	// Output:
 	// Status: 201
-	// Response: [{"correlation_id":"1","short_url":"http://localhost:8080/6bdb5b0e"},{"correlation_id":"2","short_url":"http://localhost:8080/e98192e1"}]
+	// Response: [{"correlation_id":"1","short_url":"http://localhost:8080/6bdb5b0e0"},{"correlation_id":"2","short_url":"http://localhost:8080/e98192e1"}]
 }
 
 func ExampleGetUserURLsHandler() {
 	// Инициализация тестового окружения
-	repo := storage.NewMockStorage()
 	userService := user.NewMockUserService("test-user")
-	cfg := &config.Config{BaseURL: "http://localhost:8080"}
-
-	// Добавление тестовых данных
-	repo.Save(context.Background(), models.URLModel{
-		ID:     "abcdef12",
-		URL:    "https://practicum.yandex.ru",
-		UserID: "test-user",
-	})
+	urlService := &MockURLService{}
 
 	// Создание обработчика
-	handler := handlers.GetUserURLsHandler(repo, userService, cfg)
+	handler := handlers.GetUserURLsHandler(urlService, userService)
 
 	// Создание тестового запроса
 	req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)

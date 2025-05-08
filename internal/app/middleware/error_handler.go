@@ -37,7 +37,6 @@ func ProcessError(w http.ResponseWriter, inputErr error, shortenedURL string, re
 			_, writeErr := w.Write([]byte(shortenedURL))
 			if writeErr != nil {
 				http.Error(w, "Failed to write response", http.StatusInternalServerError)
-				return
 			}
 			return
 		}
@@ -46,7 +45,6 @@ func ProcessError(w http.ResponseWriter, inputErr error, shortenedURL string, re
 			ShortURL: shortenedURL,
 		}); encodeErr != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			return
 		}
 
 		return

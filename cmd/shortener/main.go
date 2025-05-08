@@ -19,26 +19,28 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/pg"
 )
 
-// Информация о сборке
+// Информация о сборке приложения.
+// Заполняется при компиляции с помощью флагов линковщика:
+// -ldflags "-X main.buildVer=v1.0.0 -X main.buildDt=2023-05-11 -X main.buildCmt=abc123"
 var (
-	buildVersion string // версия сборки
-	buildDate    string // дата сборки
-	buildCommit  string // коммит, на котором собрана версия
+	buildVer string // версия сборки
+	buildDt  string // дата сборки
+	buildCmt string // коммит, на котором собрана версия
 )
 
 // Функция для вывода информации о сборке
 func printBuildInfo() {
-	version := buildVersion
+	version := buildVer
 	if version == "" {
 		version = "N/A"
 	}
 
-	date := buildDate
+	date := buildDt
 	if date == "" {
 		date = "N/A"
 	}
 
-	commit := buildCommit
+	commit := buildCmt
 	if commit == "" {
 		commit = "N/A"
 	}
@@ -49,9 +51,6 @@ func printBuildInfo() {
 }
 
 func main() {
-	// Вывод информации о сборке
-	printBuildInfo()
-
 	// Инициализируем конфигурацию
 	cfg, err := config.InitConfig()
 	if err != nil {
@@ -67,9 +66,9 @@ func main() {
 
 	var repo storage.URLStorage
 	if cfg.DatabaseDSN != "" {
-		pool, errConnect := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
-		if errConnect != nil {
-			log.Fatalf("Failed connect to db: %v", errConnect)
+		pool, err := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
+		if err != nil {
+			log.Fatalf("Failed connect to db: %v", err)
 		}
 		defer pool.Close()
 		repo = pg.NewDatabaseStorage(pool)
@@ -79,9 +78,9 @@ func main() {
 		repo = memory.NewInMemoryStorage()
 	}
 
-	// Инициализируем сервис пользователя
+	// Инициализируем сервисы
 	userService := user.NewUserService("super-secret-key")
-	urlService := url.NewURLService(ctx, repo, cfg.BaseURL, cfg.BatchSize)
+	urlService := url.NewURLService(repo, cfg.BaseURL, cfg.BatchSize)
 
 	// Запуск сервера
 	fmt.Println("Server started at", cfg.ServerAddress)
