@@ -19,6 +19,37 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/pg"
 )
 
+// Информация о сборке приложения.
+// Заполняется при компиляции с помощью флагов линковщика:
+// -ldflags "-X main.buildVer=v1.0.0 -X main.buildDt=2023-05-11 -X main.buildCmt=abc123"
+var (
+	buildVer string // версия сборки
+	buildDt  string // дата сборки
+	buildCmt string // коммит, на котором собрана версия
+)
+
+// Функция для вывода информации о сборке
+func printBuildInfo() {
+	version := buildVer
+	if version == "" {
+		version = "N/A"
+	}
+
+	date := buildDt
+	if date == "" {
+		date = "N/A"
+	}
+
+	commit := buildCmt
+	if commit == "" {
+		commit = "N/A"
+	}
+
+	fmt.Printf("Build version: %s\n", version)
+	fmt.Printf("Build date: %s\n", date)
+	fmt.Printf("Build commit: %s\n", commit)
+}
+
 func main() {
 	// Инициализируем конфигурацию
 	cfg, err := config.InitConfig()
@@ -47,9 +78,9 @@ func main() {
 		repo = memory.NewInMemoryStorage()
 	}
 
-	// Инициализируем сервис пользователя
+	// Инициализируем сервисы
 	userService := user.NewUserService("super-secret-key")
-	urlService := url.NewURLService(ctx, repo, cfg.BaseURL, cfg.BatchSize)
+	urlService := url.NewURLService(repo, cfg.BaseURL, cfg.BatchSize)
 
 	// Запуск сервера
 	fmt.Println("Server started at", cfg.ServerAddress)

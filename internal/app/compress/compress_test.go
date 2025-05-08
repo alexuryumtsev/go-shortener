@@ -114,17 +114,17 @@ func TestGzipMiddleware(t *testing.T) {
 
 			if tt.wantBody != "" {
 				var body []byte
-				var err error
+				var readErr error
 
 				if res.Header.Get("Content-Encoding") == "gzip" {
-					gz, err := gzip.NewReader(res.Body)
-					require.NoError(t, err)
-					body, err = io.ReadAll(gz)
-					require.NoError(t, err)
+					gz, gzipErr := gzip.NewReader(res.Body)
+					require.NoError(t, gzipErr)
+					body, readErr = io.ReadAll(gz)
+					require.NoError(t, readErr)
 					require.NoError(t, gz.Close())
 				} else {
-					body, err = io.ReadAll(res.Body)
-					require.NoError(t, err)
+					body, readErr = io.ReadAll(res.Body)
+					require.NoError(t, readErr)
 				}
 
 				assert.Equal(t, tt.wantBody, string(body))

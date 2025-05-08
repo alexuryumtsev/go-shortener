@@ -1,3 +1,4 @@
+// Package models содержит структуры и модели данных, используемые в приложении.
 package models
 
 // URLModel представляет собой модель для хранения информации о URL.
@@ -32,4 +33,11 @@ type RequestBody struct {
 // ResponseBody определяет структуру ответа.
 type ResponseBody struct {
 	ShortURL string `json:"result"`
+}
+
+// UserURLModel представляет собой модель для URL пользователя.
+// Содержит короткий URL и оригинальный URL.
+type UserURLModel struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }

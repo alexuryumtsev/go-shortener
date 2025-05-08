@@ -10,17 +10,17 @@ import (
 )
 
 func TestURLService(t *testing.T) {
-	ctx := context.Background()
 	mockStorage := storage.NewMockStorage()
 	baseURL := "http://localhost:8080"
 	batchSize := 10
-	service := NewURLService(ctx, mockStorage, baseURL, batchSize)
+	service := NewURLService(mockStorage, baseURL, batchSize)
+	ctx := context.Background()
 
 	t.Run("ShortenerURL", func(t *testing.T) {
 		originalURL := "https://example.com"
 		userID := "test-user"
 
-		shortURL, err := service.ShortenerURL(originalURL, userID)
+		shortURL, err := service.ShortenerURL(ctx, originalURL, userID)
 		assert.NoError(t, err)
 		assert.Contains(t, shortURL, baseURL)
 	})
@@ -32,19 +32,37 @@ func TestURLService(t *testing.T) {
 		}
 		userID := "test-user"
 
-		shortURLs, err := service.SaveBatchShortenerURL(batch, userID)
+		responseModels, err := service.SaveBatchShortenerURL(ctx, batch, userID)
 		assert.NoError(t, err)
-		assert.Len(t, shortURLs, 2)
-		for _, url := range shortURLs {
-			assert.Contains(t, url, baseURL)
+		assert.Len(t, responseModels, 2)
+		for _, model := range responseModels {
+			assert.Contains(t, model.ShortURL, baseURL)
 		}
 	})
 
-	t.Run("DeleteUserURLsBatch", func(t *testing.T) {
+	t.Run("GetURLByID", func(t *testing.T) {
+		// Сначала сохраним URL
+		originalURL := "https://example.com"
 		userID := "test-user"
-		shortURLs := []string{"abc123", "def456"}
-
-		err := service.DeleteUserURLsBatch(ctx, userID, shortURLs)
+		shortURL, err := service.ShortenerURL(ctx, originalURL, userID)
 		assert.NoError(t, err)
+
+		// Извлекаем ID из короткого URL
+		id := shortURL[len(baseURL)+1:]
+
+		// Теперь пробуем получить URL по ID
+		retrievedURL, exists, err := service.GetURLByID(ctx, id)
+		assert.True(t, exists)
+		assert.NoError(t, err)
+		assert.Equal(t, originalURL, retrievedURL)
+	})
+
+	t.Run("GetUserURLs", func(t *testing.T) {
+		userID := "test-user"
+
+		// Получаем URL пользователя
+		userURLs, err := service.GetUserURLs(ctx, userID)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, userURLs)
 	})
 }

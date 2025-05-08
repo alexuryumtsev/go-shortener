@@ -7,20 +7,52 @@ import (
 	"testing"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
-	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetHandler(t *testing.T) {
-	// тестовое хранилище и добавляем тестовые данные.
-	id := "0dd11111"
-	repo := storage.NewMockStorage()
-	repo.Save(context.Background(), models.URLModel{ID: id, URL: "https://practicum.yandex.ru/"})
+// MockURLServiceForGet - мок-реализация URLService для тестирования Get
+type MockURLServiceForGet struct {
+	urls map[string]string
+}
 
-	// Инициализация маршрутизатора.
+func NewMockURLServiceForGet() *MockURLServiceForGet {
+	return &MockURLServiceForGet{
+		urls: map[string]string{
+			"0dd11111": "https://practicum.yandex.ru/",
+		},
+	}
+}
+
+func (m *MockURLServiceForGet) ShortenerURL(ctx context.Context, originalURL, userID string) (string, error) {
+	return "http://localhost/shortid", nil
+}
+
+func (m *MockURLServiceForGet) SaveBatchShortenerURL(ctx context.Context, batchModels []models.URLBatchModel, userID string) ([]models.BatchResponseModel, error) {
+	return nil, nil
+}
+
+func (m *MockURLServiceForGet) DeleteUserURLsBatch(ctx context.Context, userID string, shortURLs []string) error {
+	return nil
+}
+
+func (m *MockURLServiceForGet) GetURLByID(ctx context.Context, id string) (string, bool, error) {
+	url, exists := m.urls[id]
+	if !exists {
+		return "", false, nil
+	}
+	return url, true, nil
+}
+
+func (m *MockURLServiceForGet) GetUserURLs(ctx context.Context, userID string) ([]models.UserURLModel, error) {
+	return nil, nil
+}
+
+func TestGetHandler(t *testing.T) {
+	// Инициализация мок-сервиса и маршрутизатора
+	mockURLService := NewMockURLServiceForGet()
 	r := chi.NewRouter()
-	r.Get("/{id}", GetHandler(repo))
+	r.Get("/{id}", GetHandler(mockURLService))
 
 	type want struct {
 		code        int
@@ -35,7 +67,7 @@ func TestGetHandler(t *testing.T) {
 	}{
 		{
 			name:        "Valid ID",
-			requestPath: "/" + id,
+			requestPath: "/0dd11111",
 			want: want{
 				code:        http.StatusTemporaryRedirect,
 				header:      "https://practicum.yandex.ru/",
@@ -55,11 +87,11 @@ func TestGetHandler(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// тестовый HTTP-запрос.
+			// тестовый HTTP-запрос
 			req := httptest.NewRequest(http.MethodGet, tc.requestPath, nil)
 			rec := httptest.NewRecorder()
 
-			// Отправляем запрос через маршрутизатор.
+			// Отправляем запрос через маршрутизатор
 			r.ServeHTTP(rec, req)
 
 			res := rec.Result()
@@ -76,17 +108,10 @@ func TestGetHandler(t *testing.T) {
 }
 
 func BenchmarkGetHandler(b *testing.B) {
-	// Подготовка тестовых данных
-	id := "test123"
-	repo := storage.NewMockStorage()
-	repo.Save(context.Background(), models.URLModel{
-		ID:  id,
-		URL: "https://practicum.yandex.ru/",
-	})
-
-	// Инициализация маршрутизатора
+	// Подготовка тестового окружения
+	mockURLService := NewMockURLServiceForGet()
 	r := chi.NewRouter()
-	r.Get("/{id}", GetHandler(repo))
+	r.Get("/{id}", GetHandler(mockURLService))
 
 	benchmarks := []struct {
 		name        string
@@ -95,7 +120,7 @@ func BenchmarkGetHandler(b *testing.B) {
 	}{
 		{
 			name:        "Existing URL",
-			requestPath: "/" + id,
+			requestPath: "/0dd11111",
 			wantStatus:  http.StatusTemporaryRedirect,
 		},
 		{

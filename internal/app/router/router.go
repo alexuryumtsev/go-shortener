@@ -1,3 +1,5 @@
+// Package router содержит маршруты и обработчики для приложения.
+// Он использует библиотеку chi для создания маршрутов и middleware для обработки запросов.
 package router
 
 import (
@@ -51,13 +53,13 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 			setupProfiling(r)
 		}
 
-		r.Post("/", handlers.PostHandler(repo, userService, cfg))
-		r.Get("/{id}", handlers.GetHandler(repo))
+		r.Post("/", handlers.PostHandler(urlService, userService))
+		r.Get("/{id}", handlers.GetHandler(urlService))
 		r.Get("/ping", handlers.PingHandler(repo))
-		r.Get("/api/user/urls", handlers.GetUserURLsHandler(repo, userService, cfg))
+		r.Get("/api/user/urls", handlers.GetUserURLsHandler(urlService, userService))
 		r.Delete("/api/user/urls", handlers.DeleteUserURLsHandler(urlService, userService))
-		r.Post("/api/shorten", handlers.PostJSONHandler(repo, userService, cfg))
-		r.Post("/api/shorten/batch", handlers.PostBatchHandler(repo, userService, cfg))
+		r.Post("/api/shorten", handlers.PostJSONHandler(urlService, userService))
+		r.Post("/api/shorten/batch", handlers.PostBatchHandler(urlService, userService))
 	})
 
 	return r

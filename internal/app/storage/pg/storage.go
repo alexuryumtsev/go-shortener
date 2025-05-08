@@ -1,3 +1,4 @@
+// Package pg реализует интерфейс Storage для работы с базой данных PostgreSQL.
 package pg
 
 import (
@@ -40,7 +41,17 @@ func (s *DatabaseStorage) SaveBatch(ctx context.Context, urlModels []models.URLM
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			// Если произошла ошибка при rollback, добавляем её к основной ошибке
+			if err != nil {
+				err = fmt.Errorf("rollback error: %v: %w", rollbackErr, err)
+			} else {
+				err = rollbackErr
+			}
+		}
+	}()
 
 	for _, urlModel := range urlModels {
 		query := `INSERT INTO urls (user_id, short_url, original_url) VALUES ($1, $2, $3) ON CONFLICT (short_url) DO NOTHING`
@@ -101,12 +112,23 @@ func (s *DatabaseStorage) Ping(ctx context.Context) error {
 	return s.db.Ping(ctx)
 }
 
+// DeleteUserURLs удаляет URL для данного userID из базы данных.
 func (s *DatabaseStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
 	tx, err := s.db.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			// Если произошла ошибка при rollback, добавляем её к основной ошибке
+			if err != nil {
+				err = fmt.Errorf("rollback error: %v: %w", rollbackErr, err)
+			} else {
+				err = rollbackErr
+			}
+		}
+	}()
 
 	query := `
         UPDATE urls

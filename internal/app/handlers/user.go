@@ -1,99 +1,83 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
+	"time"
 
-	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/user"
-	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
 
-type UserURL struct {
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
-}
-
 // GetUserURLsHandler возвращает все URL текущего пользователя.
-//
-// Принимает:
-//   - Cookie: auth_token - JWT токен для аутентификации пользователя
-//
-// Возвращает:
-//   - В случае успеха:
-//     Код: 200 OK
-//     Content-Type: application/json
-//     Тело: [
-//     {"short_url": "http://shortener.com/abc", "original_url": "https://example1.com"},
-//     {"short_url": "http://shortener.com/def", "original_url": "https://example2.com"}
-//     ]
-//   - Если URL не найдены:
-//     Код: 204 No Content
-//   - В случае ошибки:
-//     Код: 401 Unauthorized - если токен отсутствует или невалиден
-//     Код: 500 Internal Server Error - при внутренних ошибках сервера
-func GetUserURLsHandler(repo storage.URLStorage, userService user.UserService, cfg *config.Config) http.HandlerFunc {
+func GetUserURLsHandler(urlService url.URLService, userService user.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Создаем контекст с таймаутом
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		// Получаем ID пользователя
 		userID := userService.GetUserIDFromCookie(r)
-		urls, err := repo.GetUserURLs(r.Context(), userID)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		if len(urls) == 0 {
+		// Вызываем бизнес-логику
+		userURLs, err := urlService.GetUserURLs(ctx, userID)
+
+		if err != nil {
+			http.Error(w, "Failed to get user URLs", http.StatusInternalServerError)
+			return
+		}
+
+		if len(userURLs) == 0 {
+			// Если у пользователя нет URL, возвращаем 204 No Content
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")
-		var userURLs []UserURL
-		for _, url := range urls {
-			if url.Deleted {
-				continue
-			}
-			userURLs = append(userURLs, UserURL{
-				ShortURL:    baseURL + "/" + url.ID,
-				OriginalURL: url.URL,
-			})
-		}
-
+		// Отправляем ответ
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(userURLs)
+		if err := json.NewEncoder(w).Encode(userURLs); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
 	}
 }
 
 // DeleteUserURLsHandler удаляет URL пользователя.
-//
-// Принимает:
-//   - Cookie: auth_token - JWT токен для аутентификации пользователя
-//   - Content-Type: application/json
-//   - Тело: ["url_id1", "url_id2", ...]
-//
-// Возвращает:
-//   - В случае успеха:
-//     Код: 202 Accepted
-//   - В случае ошибки:
-//     Код: 401 Unauthorized - если токен отсутствует или невалиден
-//     Код: 400 Bad Request - при невалидном JSON
-//     Код: 500 Internal Server Error - при внутренних ошибках сервера
 func DeleteUserURLsHandler(urlService url.URLService, userService user.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Получаем ID пользователя
+		userID := userService.GetUserIDFromCookie(r)
+		if userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Декодируем JSON с URLs для удаления
 		var shortURLs []string
 		if err := json.NewDecoder(r.Body).Decode(&shortURLs); err != nil {
-			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		userID := userService.GetUserIDFromCookie(r)
+		// Запускаем асинхронный процесс удаления
+		go func() {
+			// Создаем отдельный контекст для асинхронной операции
+			deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer deleteCancel()
 
-		if err := urlService.DeleteUserURLsBatch(r.Context(), userID, shortURLs); err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
+			if err := urlService.DeleteUserURLsBatch(deleteCtx, userID, shortURLs); err != nil {
+				if err := urlService.DeleteUserURLsBatch(r.Context(), userID, shortURLs); err != nil {
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+			}
+		}()
 
+		// Сразу возвращаем статус 202, т.к. удаление асинхронное
 		w.WriteHeader(http.StatusAccepted)
 	}
 }

@@ -1,3 +1,4 @@
+// Package file предоставляет реализацию хранилища для работы с файлами.
 package file
 
 import (
@@ -150,6 +151,7 @@ func (s *FileStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Close закрывает файловое хранилище.
 func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
 	// Загружаем все записи из файла
 	if err := s.LoadFromFile(); err != nil {

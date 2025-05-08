@@ -1,3 +1,4 @@
+// Package memory предоставляет реализацию хранилища в памяти для сокращённых URL.
 package memory
 
 import (
@@ -73,6 +74,7 @@ func (s *InMemoryStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// DeleteUserURLs удаляет URL, сокращённые пользователем.
 func (s *InMemoryStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
