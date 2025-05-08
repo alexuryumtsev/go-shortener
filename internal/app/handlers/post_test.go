@@ -19,8 +19,8 @@ import (
 func TestPostHandler(t *testing.T) {
 	userID := "test-user"
 	mockUserService := user.NewMockUserService(userID)
-	mockUrlService := url.NewMockURLService("http://localhost:8080/", nil)
-	handler := PostHandler(mockUrlService, mockUserService)
+	mockURLService := url.NewMockURLService("http://localhost:8080/", nil)
+	handler := PostHandler(mockURLService, mockUserService)
 
 	type want struct {
 		code        int
@@ -77,8 +77,8 @@ func TestPostJsonHandler(t *testing.T) {
 
 	// тестовое хранилище.
 	mockUserService := user.NewMockUserService(userID)
-	mockUrlService := url.NewMockURLService("http://localhost:8080/", nil)
-	handler := PostJSONHandler(mockUrlService, mockUserService)
+	mockURLService := url.NewMockURLService("http://localhost:8080/", nil)
+	handler := PostJSONHandler(mockURLService, mockUserService)
 
 	type want struct {
 		code         int
@@ -145,11 +145,11 @@ func BenchmarkPostHandlers(b *testing.B) {
 	// Подготовка тестовых данных
 	userID := "test-user"
 	mockUserService := user.NewMockUserService(userID)
-	mockUrlService := url.NewMockURLService("http://localhost:8080/", nil)
+	mockURLService := url.NewMockURLService("http://localhost:8080/", nil)
 
 	// Подготовка обработчиков
-	plainHandler := PostHandler(mockUrlService, mockUserService)
-	jsonHandler := PostJSONHandler(mockUrlService, mockUserService)
+	plainHandler := PostHandler(mockURLService, mockUserService)
+	jsonHandler := PostJSONHandler(mockURLService, mockUserService)
 
 	// Тестовые данные
 	testURL := "https://practicum.yandex.ru/"
