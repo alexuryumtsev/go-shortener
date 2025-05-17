@@ -36,6 +36,18 @@ type Config struct {
 	// Debug включает режим отладки
 	// По умолчанию: false
 	Debug bool
+
+	// EnableHTTPS включает защищенное соединение HTTPS
+	// По умолчанию: false
+	EnableHTTPS bool
+
+	// CertPath указывает путь к файлу сертификата для HTTPS
+	// По умолчанию: "./cert.pem"
+	CertPath string
+
+	// KeyPath указывает путь к файлу ключа для HTTPS
+	// По умолчанию: "./key.pem"
+	KeyPath string
 }
 
 // Значения по умолчанию.
@@ -46,6 +58,9 @@ const (
 	defaultDatabaseDSN   = ""
 	defaultBatchSize     = 10
 	defaultDebug         = false
+	defaultEnableHTTPS   = false
+	defaultCertPath      = "./cert.pem"
+	defaultKeyPath       = "./key.pem"
 )
 
 // InitConfig инициализирует конфигурацию приложения.
@@ -62,10 +77,18 @@ func InitConfig() (*Config, error) {
 	envDatabaseDSN := os.Getenv("DATABASE_DSN")
 	envBatchSize := os.Getenv("BATCH_SIZE")
 	envDebug := os.Getenv("DEBUG")
+	envEnableHTTPS := os.Getenv("ENABLE_HTTPS")
+	envCertPath := os.Getenv("CERT_PATH")
+	envKeyPath := os.Getenv("KEY_PATH")
 
 	debug := defaultDebug
 	if envDebug != "" {
 		debug = envDebug == "true"
+	}
+
+	enableHTTPS := defaultEnableHTTPS
+	if envEnableHTTPS != "" {
+		enableHTTPS = envEnableHTTPS == "true"
 	}
 
 	// Определяем флаги
@@ -75,6 +98,9 @@ func InitConfig() (*Config, error) {
 	flag.StringVar(&cfg.DatabaseDSN, "d", envDatabaseDSN, "Строка подключения к базе данных (DSN)")
 	flag.IntVar(&cfg.BatchSize, "batch", defaultBatchSize, "Batch size for bulk operations")
 	flag.BoolVar(&cfg.Debug, "debug", debug, "Enable debug mode")
+	flag.BoolVar(&cfg.EnableHTTPS, "s", enableHTTPS, "Enable HTTPS")
+	flag.StringVar(&cfg.CertPath, "cert", "", "Path to SSL certificate file")
+	flag.StringVar(&cfg.KeyPath, "key", "", "Path to SSL key file")
 
 	// Обрабатываем флаги
 	flag.Parse()
@@ -128,6 +154,23 @@ func InitConfig() (*Config, error) {
 
 	if cfg.BatchSize <= 0 {
 		cfg.BatchSize = defaultBatchSize
+	}
+
+	// Настройка путей к SSL сертификатам
+	if cfg.CertPath == "" {
+		cfg.CertPath = envCertPath
+	}
+
+	if cfg.CertPath == "" {
+		cfg.CertPath = defaultCertPath
+	}
+
+	if cfg.KeyPath == "" {
+		cfg.KeyPath = envKeyPath
+	}
+
+	if cfg.KeyPath == "" {
+		cfg.KeyPath = defaultKeyPath
 	}
 
 	// Проверка корректности URL

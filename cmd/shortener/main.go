@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
@@ -57,6 +58,9 @@ func main() {
 		log.Fatalf("Failed to initialize config: %v", err)
 	}
 
+	// Выводим информацию о сборке
+	printBuildInfo()
+
 	// Инициализируем логгер
 	logger.InitLogger()
 
@@ -82,10 +86,36 @@ func main() {
 	userService := user.NewUserService("super-secret-key")
 	urlService := url.NewURLService(repo, cfg.BaseURL, cfg.BatchSize)
 
+	// Создаем роутер
+	handler := router.ShortenerRouter(cfg, repo, userService, urlService)
+
 	// Запуск сервера
-	fmt.Println("Server started at", cfg.ServerAddress)
-	err = http.ListenAndServe(cfg.ServerAddress, router.ShortenerRouter(cfg, repo, userService, urlService))
-	if err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	var serverErr error
+	protocol := "HTTP"
+
+	if cfg.EnableHTTPS {
+		protocol = "HTTPS"
+		fmt.Printf("%s server started at %s\n", protocol, cfg.ServerAddress)
+
+		// Настройка конфигурации TLS
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+
+		// Создание TLS сервера
+		server := &http.Server{
+			Addr:      cfg.ServerAddress,
+			Handler:   handler,
+			TLSConfig: tlsConfig,
+		}
+
+		serverErr = server.ListenAndServeTLS(cfg.CertPath, cfg.KeyPath)
+	} else {
+		fmt.Printf("%s server started at %s\n", protocol, cfg.ServerAddress)
+		serverErr = http.ListenAndServe(cfg.ServerAddress, handler)
+	}
+
+	if serverErr != nil {
+		log.Fatalf("Failed to start server: %v", serverErr)
 	}
 }
