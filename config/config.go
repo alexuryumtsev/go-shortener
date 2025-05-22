@@ -2,7 +2,9 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,17 +39,23 @@ type Config struct {
 	// По умолчанию: false
 	Debug bool
 
-	// EnableHTTPS включает защищенное соединение HTTPS
+	// EnableHTTPS включает HTTPS режим
 	// По умолчанию: false
 	EnableHTTPS bool
 
-	// CertPath указывает путь к файлу сертификата для HTTPS
-	// По умолчанию: "./cert.pem"
-	CertPath string
+	// ConfigPath указывает путь к файлу конфигурации
+	ConfigPath string
+}
 
-	// KeyPath указывает путь к файлу ключа для HTTPS
-	// По умолчанию: "./key.pem"
-	KeyPath string
+// JSONConfig представляет структуру JSON файла конфигурации
+type JSONConfig struct {
+	ServerAddress   string `json:"server_address"`
+	BaseURL         string `json:"base_url"`
+	FileStoragePath string `json:"file_storage_path"`
+	DatabaseDSN     string `json:"database_dsn"`
+	BatchSize       int    `json:"batch_size"`
+	Debug           bool   `json:"debug"`
+	EnableHTTPS     bool   `json:"enable_https"`
 }
 
 // Значения по умолчанию.
@@ -59,15 +67,39 @@ const (
 	defaultBatchSize     = 10
 	defaultDebug         = false
 	defaultEnableHTTPS   = false
-	defaultCertPath      = "./cert.pem"
-	defaultKeyPath       = "./key.pem"
 )
 
+// loadJSONConfig загружает конфигурацию из JSON файла
+func loadJSONConfig(path string) (*JSONConfig, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open config file: %w", err)
+	}
+	defer file.Close()
+
+	var jsonCfg JSONConfig
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&jsonCfg); err != nil {
+		return nil, fmt.Errorf("failed to decode config file: %w", err)
+	}
+
+	return &jsonCfg, nil
+}
+
 // InitConfig инициализирует конфигурацию приложения.
-// Читает параметры из переменных окружения и флагов командной строки.
+// Читает параметры из файла конфигурации, переменных окружения и флагов командной строки.
+// Приоритет (от низкого к высокому): файл конфигурации < переменные окружения < флаги.
 // Возвращает указатель на Config и ошибку в случае некорректных параметров.
 func InitConfig() (*Config, error) {
 	cfg := &Config{}
+
+	// Определяем флаг для пути к конфигурационному файлу
+	var configPath string
+	flag.StringVar(&configPath, "c", "", "Path to configuration file")
+	flag.StringVar(&configPath, "config", "", "Path to configuration file")
+
+	// Получаем путь к конфигурационному файлу из переменной окружения
+	envConfigPath := os.Getenv("CONFIG")
 
 	// Получаем значения из переменных окружения.
 	envServerAddress := os.Getenv("SERVER_ADDRESS")
@@ -78,8 +110,6 @@ func InitConfig() (*Config, error) {
 	envBatchSize := os.Getenv("BATCH_SIZE")
 	envDebug := os.Getenv("DEBUG")
 	envEnableHTTPS := os.Getenv("ENABLE_HTTPS")
-	envCertPath := os.Getenv("CERT_PATH")
-	envKeyPath := os.Getenv("KEY_PATH")
 
 	debug := defaultDebug
 	if envDebug != "" {
@@ -99,78 +129,128 @@ func InitConfig() (*Config, error) {
 	flag.IntVar(&cfg.BatchSize, "batch", defaultBatchSize, "Batch size for bulk operations")
 	flag.BoolVar(&cfg.Debug, "debug", debug, "Enable debug mode")
 	flag.BoolVar(&cfg.EnableHTTPS, "s", enableHTTPS, "Enable HTTPS")
-	flag.StringVar(&cfg.CertPath, "cert", "", "Path to SSL certificate file")
-	flag.StringVar(&cfg.KeyPath, "key", "", "Path to SSL key file")
 
 	// Обрабатываем флаги
 	flag.Parse()
 
-	// Проверяем значения флагов и переменных окружения
-	if cfg.ServerAddress == "" {
+	// Инициализируем значениями по умолчанию
+	cfg.ServerAddress = defaultServerAddress
+	cfg.BaseURL = defaultBaseURL
+	cfg.FileStoragePath = defaultStoragePath
+	cfg.DatabaseDSN = defaultDatabaseDSN
+	cfg.BatchSize = defaultBatchSize
+	cfg.Debug = defaultDebug
+	cfg.EnableHTTPS = defaultEnableHTTPS
+
+	// Определяем путь к конфигурационному файлу
+	if configPath == "" && envConfigPath != "" {
+		configPath = envConfigPath
+	}
+	cfg.ConfigPath = configPath
+
+	// Загружаем конфигурацию из JSON файла (если указан)
+	if configPath != "" {
+		jsonCfg, err := loadJSONConfig(configPath)
+		if err != nil {
+			// Если файл указан явно, но не может быть загружен - это ошибка
+			return nil, fmt.Errorf("failed to load config file: %w", err)
+		}
+
+		// Применяем значения из JSON файла
+		if jsonCfg.ServerAddress != "" {
+			cfg.ServerAddress = jsonCfg.ServerAddress
+		}
+		if jsonCfg.BaseURL != "" {
+			cfg.BaseURL = jsonCfg.BaseURL
+		}
+		if jsonCfg.FileStoragePath != "" {
+			cfg.FileStoragePath = jsonCfg.FileStoragePath
+		}
+		if jsonCfg.DatabaseDSN != "" {
+			cfg.DatabaseDSN = jsonCfg.DatabaseDSN
+		}
+		if jsonCfg.BatchSize > 0 {
+			cfg.BatchSize = jsonCfg.BatchSize
+		}
+		// Для булевых значений проверяем явное указание в JSON
+		cfg.Debug = jsonCfg.Debug
+		cfg.EnableHTTPS = jsonCfg.EnableHTTPS
+	}
+
+	// Применяем переменные окружения (более высокий приоритет)
+	if envServerAddress != "" {
 		cfg.ServerAddress = envServerAddress
 	}
 
-	if cfg.ServerAddress == "" {
-		cfg.ServerAddress = defaultServerAddress
+	if envBaseURL != "" {
+		cfg.BaseURL = envBaseURL
+	}
+
+	// Обработка файлового хранилища из переменных окружения
+	if envPath != "" || envFileStorageName != "" {
+		if envPath != "" && envFileStorageName != "" {
+			cfg.FileStoragePath = filepath.Join(envPath, envFileStorageName)
+		} else if envPath != "" {
+			cfg.FileStoragePath = filepath.Join(envPath, "storage.json")
+		} else if envFileStorageName != "" {
+			cfg.FileStoragePath = envFileStorageName
+		}
+	}
+
+	if envDatabaseDSN != "" {
+		cfg.DatabaseDSN = envDatabaseDSN
+	}
+
+	if envBatchSize != "" {
+		size, parseErr := strconv.Atoi(envBatchSize)
+		if parseErr == nil && size > 0 {
+			cfg.BatchSize = size
+		}
+	}
+
+	if envDebug != "" {
+		cfg.Debug = envDebug == "true"
+	}
+
+	if envEnableHTTPS != "" {
+		cfg.EnableHTTPS = envEnableHTTPS == "true"
+	}
+
+	// Применяем флаги командной строки (наивысший приоритет)
+	// flag.Parse() уже был вызван, проверяем были ли флаги установлены
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "a":
+			cfg.ServerAddress = f.Value.String()
+		case "b":
+			cfg.BaseURL = f.Value.String()
+		case "f":
+			path := f.Value.String()
+			if path != "" {
+				cfg.FileStoragePath = filepath.Join(path, "storage.json")
+			}
+		case "d":
+			cfg.DatabaseDSN = f.Value.String()
+		case "batch":
+			if size, err := strconv.Atoi(f.Value.String()); err == nil && size > 0 {
+				cfg.BatchSize = size
+			}
+		case "debug":
+			cfg.Debug = f.Value.String() == "true"
+		case "s":
+			cfg.EnableHTTPS = f.Value.String() == "true"
+		}
+	})
+
+	// Валидация значений
+	if cfg.BatchSize <= 0 {
+		cfg.BatchSize = defaultBatchSize
 	}
 
 	// Проверка формата host:port
 	err := validator.ValidateServerAddress(cfg.ServerAddress)
 	if err != nil {
 		return nil, err
-	}
-
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = envBaseURL
-	}
-
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
-	}
-
-	if cfg.FileStoragePath != "" {
-		cfg.FileStoragePath = filepath.Join(cfg.FileStoragePath, "storage.json")
-	}
-
-	if cfg.FileStoragePath == "" {
-		cfg.FileStoragePath = filepath.Join(envPath, envFileStorageName)
-	}
-
-	if cfg.FileStoragePath == "" {
-		cfg.FileStoragePath = defaultStoragePath
-	}
-
-	if cfg.DatabaseDSN == "" {
-		cfg.DatabaseDSN = defaultDatabaseDSN
-	}
-
-	// Установка размера батча из переменной окружения, если указана
-	if envBatchSize != "" {
-		size, parseErr := strconv.Atoi(envBatchSize) // используем другое имя переменной
-		if parseErr == nil {
-			cfg.BatchSize = size
-		}
-	}
-
-	if cfg.BatchSize <= 0 {
-		cfg.BatchSize = defaultBatchSize
-	}
-
-	// Настройка путей к SSL сертификатам
-	if cfg.CertPath == "" {
-		cfg.CertPath = envCertPath
-	}
-
-	if cfg.CertPath == "" {
-		cfg.CertPath = defaultCertPath
-	}
-
-	if cfg.KeyPath == "" {
-		cfg.KeyPath = envKeyPath
-	}
-
-	if cfg.KeyPath == "" {
-		cfg.KeyPath = defaultKeyPath
 	}
 
 	// Проверка корректности URL
