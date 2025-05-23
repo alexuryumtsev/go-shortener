@@ -17,6 +17,7 @@ func setupTestDB(t *testing.T) *db.Database {
 	// Получаем строку подключения из переменной окружения или используем тестовую базу
 	connString := os.Getenv("DATABASE_CONN_STRING")
 	if connString == "" {
+		// connString = "postgres://postgres:postgres@127.0.0.1:5432/praktikum?sslmode=disable"
 		connString = "postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable"
 	}
 

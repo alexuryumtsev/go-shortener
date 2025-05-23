@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/db"
@@ -69,12 +73,14 @@ func main() {
 	defer cancel()
 
 	var repo storage.URLStorage
+	var dbPool *db.Database // Сохраняем ссылку на пул соединений для корректного закрытия
+
 	if cfg.DatabaseDSN != "" {
 		pool, err := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
 		if err != nil {
 			log.Fatalf("Failed connect to db: %v", err)
 		}
-		defer pool.Close()
+		dbPool = pool
 		repo = pg.NewDatabaseStorage(pool)
 	} else if cfg.FileStoragePath != "" {
 		repo = file.NewFileStorage(cfg.FileStoragePath)
@@ -86,36 +92,75 @@ func main() {
 	userService := user.NewUserService("super-secret-key")
 	urlService := url.NewURLService(repo, cfg.BaseURL, cfg.BatchSize)
 
-	// Создаем роутер
-	handler := router.ShortenerRouter(cfg, repo, userService, urlService)
-
-	// Запуск сервера
-	var serverErr error
-	protocol := "HTTP"
-
-	if cfg.EnableHTTPS {
-		protocol = "HTTPS"
-		fmt.Printf("%s server started at %s\n", protocol, cfg.ServerAddress)
-
-		// Настройка конфигурации TLS
-		tlsConfig := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		}
-
-		// Создание TLS сервера
-		server := &http.Server{
-			Addr:      cfg.ServerAddress,
-			Handler:   handler,
-			TLSConfig: tlsConfig,
-		}
-
-		serverErr = server.ListenAndServeTLS(cfg.CertPath, cfg.KeyPath)
-	} else {
-		fmt.Printf("%s server started at %s\n", protocol, cfg.ServerAddress)
-		serverErr = http.ListenAndServe(cfg.ServerAddress, handler)
+	// Создаем HTTP сервер
+	server := &http.Server{
+		Addr:    cfg.ServerAddress,
+		Handler: router.ShortenerRouter(cfg, repo, userService, urlService),
 	}
 
-	if serverErr != nil {
-		log.Fatalf("Failed to start server: %v", serverErr)
-	}
+	// Канал для получения сигналов завершения
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	// WaitGroup для ожидания завершения горутин
+	var wg sync.WaitGroup
+
+	// Горутина для запуска сервера
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fmt.Printf("Server started at %s\n", cfg.ServerAddress)
+
+		var err error
+		if cfg.EnableHTTPS {
+			err = server.ListenAndServeTLS(cfg.CertPath, cfg.KeyPath)
+		} else {
+			err = server.ListenAndServe()
+		}
+
+		if err != nil && err != http.ErrServerClosed {
+			log.Printf("Server error: %v", err)
+		}
+	}()
+
+	// Горутина для обработки сигналов завершения
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// Ожидаем сигнал завершения
+		sig := <-sigChan
+		fmt.Printf("\nReceived signal: %v. Starting graceful shutdown...\n", sig)
+
+		// Создаем контекст с таймаутом для graceful shutdown
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+
+		// Останавливаем HTTP сервер
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Server shutdown error: %v", err)
+		} else {
+			fmt.Println("HTTP server stopped gracefully")
+		}
+
+		// Сохраняем данные в хранилище
+		if err := repo.Close(); err != nil {
+			log.Printf("Storage close error: %v", err)
+		} else {
+			fmt.Println("Storage closed gracefully")
+		}
+
+		// Закрываем соединение с базой данных
+		if dbPool != nil {
+			dbPool.Close()
+			fmt.Println("Database connection closed")
+		}
+
+		// Отменяем основной контекст
+		cancel()
+	}()
+
+	// Ожидаем завершения всех горутин
+	wg.Wait()
+	fmt.Println("Application shutdown completed")
 }

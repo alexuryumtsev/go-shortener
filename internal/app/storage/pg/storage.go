@@ -146,3 +146,12 @@ func (s *DatabaseStorage) DeleteUserURLs(ctx context.Context, userID string, sho
 	}
 	return nil
 }
+
+// Close корректно закрывает соединение с базой данных.
+// Для PostgreSQL все транзакции уже коммичены,
+// соединение будет закрыто в main.go через dbPool.Close().
+func (s *DatabaseStorage) Close() error {
+	// Для PostgreSQL storage нет необходимости в дополнительных действиях
+	// так как все операции уже коммичены в БД
+	return nil
+}
