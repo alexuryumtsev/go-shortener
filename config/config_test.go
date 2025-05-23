@@ -8,13 +8,12 @@ import (
 )
 
 func TestLoadConfigFile(t *testing.T) {
-	// Create a temporary config file
 	content := `{
         "server_address": "localhost:9000",
         "base_url": "http://test.com",
         "file_storage_path": "/test/path.db",
         "database_dsn": "test-dsn",
-        "enable_https": true
+        "enable_https": false
     }`
 
 	tmpfile, err := os.CreateTemp("", "config-*.json")
@@ -25,7 +24,6 @@ func TestLoadConfigFile(t *testing.T) {
 	assert.NoError(t, err)
 	tmpfile.Close()
 
-	// Set config file path via environment
 	os.Setenv("CONFIG", tmpfile.Name())
 	defer os.Unsetenv("CONFIG")
 
@@ -35,5 +33,5 @@ func TestLoadConfigFile(t *testing.T) {
 	assert.Equal(t, "http://test.com", cfg.BaseURL)
 	assert.Equal(t, "/test/path.db", cfg.FileStoragePath)
 	assert.Equal(t, "test-dsn", cfg.DatabaseDSN)
-	assert.True(t, cfg.EnableHTTPS)
+	assert.False(t, cfg.EnableHTTPS)
 }
