@@ -280,13 +280,29 @@ func InitConfig() (*Config, error) {
 	)
 }
 
-// Геттеры для доступа к полям конфигурации
-func (c *Config) ServerAddress() string   { return c.serverAddress }
-func (c *Config) BaseURL() string         { return c.baseURL }
+// ServerAddress возвращает адрес HTTP сервера
+func (c *Config) ServerAddress() string { return c.serverAddress }
+
+// BaseURL возвращает базовый URL для коротких ссылок
+func (c *Config) BaseURL() string { return c.baseURL }
+
+// FileStoragePath возвращает путь к файлу хранилища данных
 func (c *Config) FileStoragePath() string { return c.fileStoragePath }
-func (c *Config) DatabaseDSN() string     { return c.databaseDSN }
-func (c *Config) BatchSize() int          { return c.batchSize }
-func (c *Config) Debug() bool             { return c.debug }
-func (c *Config) EnableHTTPS() bool       { return c.enableHTTPS }
-func (c *Config) CertPath() string        { return c.certPath }
-func (c *Config) KeyPath() string         { return c.keyPath }
+
+// DatabaseDSN возвращает строку подключения к базе данных
+func (c *Config) DatabaseDSN() string { return c.databaseDSN }
+
+// BatchSize возвращает размер пакета для массовых операций
+func (c *Config) BatchSize() int { return c.batchSize }
+
+// Debug возвращает флаг включения режима отладки
+func (c *Config) Debug() bool { return c.debug }
+
+// EnableHTTPS возвращает флаг включения HTTPS
+func (c *Config) EnableHTTPS() bool { return c.enableHTTPS }
+
+// CertPath возвращает путь к SSL сертификату
+func (c *Config) CertPath() string { return c.certPath }
+
+// KeyPath возвращает путь к приватному ключу SSL
+func (c *Config) KeyPath() string { return c.keyPath }
