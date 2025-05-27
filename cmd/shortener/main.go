@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -50,9 +49,9 @@ func printBuildInfo() {
 		commit = "N/A"
 	}
 
-	fmt.Printf("Build version: %s\n", version)
-	fmt.Printf("Build date: %s\n", date)
-	fmt.Printf("Build commit: %s\n", commit)
+	log.Printf("Build version: %s\n", version)
+	log.Printf("Build date: %s\n", date)
+	log.Printf("Build commit: %s\n", commit)
 }
 
 func main() {
@@ -75,26 +74,26 @@ func main() {
 	var repo storage.URLStorage
 	var dbPool *db.Database // Сохраняем ссылку на пул соединений для корректного закрытия
 
-	if cfg.DatabaseDSN != "" {
-		pool, err := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN)
+	if cfg.DatabaseDSN() != "" {
+		pool, err := db.NewDatabaseConnection(ctx, cfg.DatabaseDSN())
 		if err != nil {
 			log.Fatalf("Failed connect to db: %v", err)
 		}
 		dbPool = pool
 		repo = pg.NewDatabaseStorage(pool)
-	} else if cfg.FileStoragePath != "" {
-		repo = file.NewFileStorage(cfg.FileStoragePath)
+	} else if cfg.FileStoragePath() != "" {
+		repo = file.NewFileStorage(cfg.FileStoragePath())
 	} else {
 		repo = memory.NewInMemoryStorage()
 	}
 
 	// Инициализируем сервисы
 	userService := user.NewUserService("super-secret-key")
-	urlService := url.NewURLService(repo, cfg.BaseURL, cfg.BatchSize)
+	urlService := url.NewURLService(repo, cfg.BaseURL(), cfg.BatchSize())
 
 	// Создаем HTTP сервер
 	server := &http.Server{
-		Addr:    cfg.ServerAddress,
+		Addr:    cfg.ServerAddress(),
 		Handler: router.ShortenerRouter(cfg, repo, userService, urlService),
 	}
 
@@ -109,11 +108,11 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fmt.Printf("Server started at %s\n", cfg.ServerAddress)
+		log.Printf("Server started at %s\n", cfg.ServerAddress())
 
 		var err error
-		if cfg.EnableHTTPS {
-			err = server.ListenAndServeTLS(cfg.CertPath, cfg.KeyPath)
+		if cfg.EnableHTTPS() {
+			err = server.ListenAndServeTLS(cfg.CertPath(), cfg.KeyPath())
 		} else {
 			err = server.ListenAndServe()
 		}
@@ -130,7 +129,7 @@ func main() {
 
 		// Ожидаем сигнал завершения
 		sig := <-sigChan
-		fmt.Printf("\nReceived signal: %v. Starting graceful shutdown...\n", sig)
+		log.Printf("\nReceived signal: %v. Starting graceful shutdown...\n", sig)
 
 		// Создаем контекст с таймаутом для graceful shutdown
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -140,20 +139,20 @@ func main() {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("Server shutdown error: %v", err)
 		} else {
-			fmt.Println("HTTP server stopped gracefully")
+			log.Println("HTTP server stopped gracefully")
 		}
 
 		// Сохраняем данные в хранилище
 		if err := repo.Close(); err != nil {
 			log.Printf("Storage close error: %v", err)
 		} else {
-			fmt.Println("Storage closed gracefully")
+			log.Println("Storage closed gracefully")
 		}
 
 		// Закрываем соединение с базой данных
 		if dbPool != nil {
 			dbPool.Close()
-			fmt.Println("Database connection closed")
+			log.Println("Database connection closed")
 		}
 
 		// Отменяем основной контекст
@@ -162,5 +161,5 @@ func main() {
 
 	// Ожидаем завершения всех горутин
 	wg.Wait()
-	fmt.Println("Application shutdown completed")
+	log.Println("Application shutdown completed")
 }

@@ -48,8 +48,8 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 
 	r.Route("/", func(r chi.Router) {
 		// Добавляем профилирование только в режиме отладки
-		log.Println(cfg.Debug)
-		if cfg.Debug {
+		log.Println(cfg.Debug())
+		if cfg.Debug() {
 			setupProfiling(r)
 		}
 

@@ -34,6 +34,24 @@ func NewFileStorage(filePath string) *FileStorage {
 	}
 }
 
+// saveAllData сохраняет все данные в файл, перезаписывая его содержимое.
+func (s *FileStorage) saveAllData() error {
+	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for saving: %w", err)
+	}
+	defer file.Close()
+
+	for _, urlModel := range s.data {
+		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
+			return fmt.Errorf("failed to save record: %w", err)
+		}
+	}
+
+	s.dirty = false // сбрасываем флаг после успешного сохранения
+	return nil
+}
+
 // Save сохраняет URL и записывает данные в файл.
 func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error {
 	s.mu.Lock()
@@ -193,23 +211,7 @@ func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortUR
 	}
 
 	s.dirty = true // помечаем, что есть несохраненные изменения
-
-	// Открываем файл для записи и очищаем его перед записью
-	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Записываем все обновленные записи обратно в файл
-	for _, urlModel := range s.data {
-		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
-			return err
-		}
-	}
-
-	s.dirty = false // сбрасываем флаг после успешного сохранения
-	return nil
+	return s.saveAllData()
 }
 
 // Close корректно закрывает файловое хранилище и сохраняет несохраненные данные.
@@ -222,20 +224,5 @@ func (s *FileStorage) Close() error {
 		return nil
 	}
 
-	// Открываем файл для записи и очищаем его перед записью
-	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open file for saving: %w", err)
-	}
-	defer file.Close()
-
-	// Записываем все данные в файл
-	for _, urlModel := range s.data {
-		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
-			return fmt.Errorf("failed to save record: %w", err)
-		}
-	}
-
-	s.dirty = false // сбрасываем флаг после успешного сохранения
-	return nil
+	return s.saveAllData()
 }

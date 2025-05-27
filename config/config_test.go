@@ -29,9 +29,9 @@ func TestLoadConfigFile(t *testing.T) {
 
 	cfg, err := InitConfig()
 	assert.NoError(t, err)
-	assert.Equal(t, "localhost:9000", cfg.ServerAddress)
-	assert.Equal(t, "http://test.com", cfg.BaseURL)
-	assert.Equal(t, "/test/path.db", cfg.FileStoragePath)
-	assert.Equal(t, "test-dsn", cfg.DatabaseDSN)
-	assert.False(t, cfg.EnableHTTPS)
+	assert.Equal(t, "localhost:9000", cfg.ServerAddress())
+	assert.Equal(t, "http://test.com", cfg.BaseURL())
+	assert.Equal(t, "/test/path.db", cfg.FileStoragePath())
+	assert.Equal(t, "test-dsn", cfg.DatabaseDSN())
+	assert.False(t, cfg.EnableHTTPS())
 }
