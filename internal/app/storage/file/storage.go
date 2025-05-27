@@ -19,6 +19,7 @@ type FileStorage struct {
 	filePath    string
 	counter     int
 	fileStorage *fileutils.FileStorage
+	dirty       bool // флаг для отслеживания несохраненных изменений
 }
 
 // NewFileStorage создаёт новое файловое хранилище.
@@ -29,7 +30,26 @@ func NewFileStorage(filePath string) *FileStorage {
 		filePath:    filePath,
 		counter:     0,
 		fileStorage: fileutils.NewFileStorage(filePath),
+		dirty:       false,
 	}
+}
+
+// saveAllData сохраняет все данные в файл, перезаписывая его содержимое.
+func (s *FileStorage) saveAllData() error {
+	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for saving: %w", err)
+	}
+	defer file.Close()
+
+	for _, urlModel := range s.data {
+		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
+			return fmt.Errorf("failed to save record: %w", err)
+		}
+	}
+
+	s.dirty = false // сбрасываем флаг после успешного сохранения
+	return nil
 }
 
 // Save сохраняет URL и записывает данные в файл.
@@ -48,6 +68,7 @@ func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error 
 	s.data[urlModel.ID] = urlModel
 	userID := urlModel.UserID
 	s.userData[userID] = append(s.userData[userID], urlModel)
+	s.dirty = true // помечаем, что есть несохраненные изменения
 
 	file, err := os.OpenFile(s.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -55,7 +76,11 @@ func (s *FileStorage) Save(ctx context.Context, urlModel models.URLModel) error 
 	}
 	defer file.Close()
 
-	return s.fileStorage.SaveRecord(file, urlModel)
+	err = s.fileStorage.SaveRecord(file, urlModel)
+	if err == nil {
+		s.dirty = false // сбрасываем флаг после успешного сохранения
+	}
+	return err
 }
 
 // SaveBatch сохраняет множество URL в файл.
@@ -69,22 +94,32 @@ func (s *FileStorage) SaveBatch(ctx context.Context, urlModels []models.URLModel
 	}
 	defer file.Close()
 
+	hasChanges := false
 	for _, urlModel := range urlModels {
 		// Проверяем, существует ли уже оригинальный URL
+		exists := false
 		for _, existingURL := range s.data {
 			if existingURL.URL == urlModel.URL {
-				// Если URL уже существует, ничего не делаем
-				continue
+				exists = true
+				break
 			}
 		}
 
-		userID := urlModel.UserID
-		s.data[urlModel.ID] = urlModel
-		s.userData[userID] = append(s.userData[userID], urlModel)
+		if !exists {
+			userID := urlModel.UserID
+			s.data[urlModel.ID] = urlModel
+			s.userData[userID] = append(s.userData[userID], urlModel)
+			hasChanges = true
 
-		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
-			return err
+			if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
+				s.dirty = true // устанавливаем флаг при ошибке
+				return err
+			}
 		}
+	}
+
+	if hasChanges {
+		s.dirty = false // сбрасываем флаг после успешного сохранения
 	}
 
 	return nil
@@ -143,6 +178,7 @@ func (s *FileStorage) LoadFromFile() error {
 	}
 
 	s.data = data
+	s.dirty = false // данные загружены из файла, изменений нет
 	return nil
 }
 
@@ -151,7 +187,7 @@ func (s *FileStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close закрывает файловое хранилище.
+// DeleteUserURLs удаляет URL пользователя (помечает как удаленные).
 func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error {
 	// Загружаем все записи из файла
 	if err := s.LoadFromFile(); err != nil {
@@ -161,26 +197,32 @@ func (s *FileStorage) DeleteUserURLs(ctx context.Context, userID string, shortUR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	hasChanges := false
 	for _, shortURL := range shortURLs {
 		if urlModel, exists := s.data[shortURL]; exists && urlModel.UserID == userID {
 			urlModel.Deleted = true
 			s.data[shortURL] = urlModel
+			hasChanges = true
 		}
 	}
 
-	// Открываем файл для записи и очищаем его перед записью
-	file, err := os.OpenFile(s.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Записываем все обновленные записи обратно в файл
-	for _, urlModel := range s.data {
-		if err := s.fileStorage.SaveRecord(file, urlModel); err != nil {
-			return err
-		}
+	if !hasChanges {
+		return nil // нет изменений для сохранения
 	}
 
-	return nil
+	s.dirty = true // помечаем, что есть несохраненные изменения
+	return s.saveAllData()
+}
+
+// Close корректно закрывает файловое хранилище и сохраняет несохраненные данные.
+func (s *FileStorage) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Сохраняем данные только если есть несохраненные изменения
+	if !s.dirty {
+		return nil
+	}
+
+	return s.saveAllData()
 }

@@ -1,7 +1,7 @@
-// Package config содержит функции и структуры для работы с конфигурацией приложения.
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -10,35 +10,23 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/validator"
 )
 
-// Config содержит настройки конфигурации приложения.
-// Включает параметры сервера, базы данных и другие настройки.
+// Config содержит настройки конфигурации приложения
 type Config struct {
-	// ServerAddress определяет адрес запуска HTTP-сервера
-	// По умолчанию: ":8080"
-	ServerAddress string
-
-	// BaseURL определяет базовый адрес для сокращённых URL
-	// По умолчанию: "http://localhost:8080/"
-	BaseURL string
-
-	// FileStoragePath указывает путь к файлу хранилища
-	// По умолчанию: "/tmp/storage.json"
-	FileStoragePath string
-
-	// DatabaseDSN определяет строку подключения к PostgreSQL
-	// По умолчанию: "" (пустая строка)
-	DatabaseDSN string
-
-	// BatchSize определяет размер батча для пакетных операций
-	// По умолчанию: 10
-	BatchSize int
-
-	// Debug включает режим отладки
-	// По умолчанию: false
-	Debug bool
+	serverAddress   string
+	baseURL         string
+	fileStoragePath string
+	databaseDSN     string
+	batchSize       int
+	debug           bool
+	enableHTTPS     bool
+	certPath        string
+	keyPath         string
 }
 
-// Значения по умолчанию.
+// Option определяет функциональную опцию для конфигурации
+type Option func(*Config)
+
+// Значения по умолчанию
 const (
 	defaultServerAddress = ":8080"
 	defaultBaseURL       = "http://localhost:8080/"
@@ -46,95 +34,275 @@ const (
 	defaultDatabaseDSN   = ""
 	defaultBatchSize     = 10
 	defaultDebug         = false
+	defaultEnableHTTPS   = false
+	defaultCertPath      = "./cert.pem"
+	defaultKeyPath       = "./key.pem"
 )
 
-// InitConfig инициализирует конфигурацию приложения.
-// Читает параметры из переменных окружения и флагов командной строки.
-// Возвращает указатель на Config и ошибку в случае некорректных параметров.
-func InitConfig() (*Config, error) {
-	cfg := &Config{}
-
-	// Получаем значения из переменных окружения.
-	envServerAddress := os.Getenv("SERVER_ADDRESS")
-	envBaseURL := os.Getenv("BASE_URL")
-	envPath := os.Getenv("FILE_STORAGE_PATH")
-	envFileStorageName := os.Getenv("FILE_STORAGE_NAME")
-	envDatabaseDSN := os.Getenv("DATABASE_DSN")
-	envBatchSize := os.Getenv("BATCH_SIZE")
-	envDebug := os.Getenv("DEBUG")
-
-	debug := defaultDebug
-	if envDebug != "" {
-		debug = envDebug == "true"
+// New создает новую конфигурацию с применением опций
+func New(opts ...Option) (*Config, error) {
+	cfg := &Config{
+		serverAddress:   defaultServerAddress,
+		baseURL:         defaultBaseURL,
+		fileStoragePath: defaultStoragePath,
+		databaseDSN:     defaultDatabaseDSN,
+		batchSize:       defaultBatchSize,
+		debug:           defaultDebug,
+		enableHTTPS:     defaultEnableHTTPS,
+		certPath:        defaultCertPath,
+		keyPath:         defaultKeyPath,
 	}
 
-	// Определяем флаги
-	flag.StringVar(&cfg.ServerAddress, "a", "", "HTTP server address, host:port")
-	flag.StringVar(&cfg.BaseURL, "b", "", "Base URL for shortened links")
-	flag.StringVar(&cfg.FileStoragePath, "f", "", "Path to file storage")
-	flag.StringVar(&cfg.DatabaseDSN, "d", envDatabaseDSN, "Строка подключения к базе данных (DSN)")
-	flag.IntVar(&cfg.BatchSize, "batch", defaultBatchSize, "Batch size for bulk operations")
-	flag.BoolVar(&cfg.Debug, "debug", debug, "Enable debug mode")
-
-	// Обрабатываем флаги
-	flag.Parse()
-
-	// Проверяем значения флагов и переменных окружения
-	if cfg.ServerAddress == "" {
-		cfg.ServerAddress = envServerAddress
+	// Применяем все опции
+	for _, opt := range opts {
+		opt(cfg)
 	}
 
-	if cfg.ServerAddress == "" {
-		cfg.ServerAddress = defaultServerAddress
-	}
-
-	// Проверка формата host:port
-	err := validator.ValidateServerAddress(cfg.ServerAddress)
-	if err != nil {
+	// Валидация конфигурации
+	if err := validator.ValidateServerAddress(cfg.serverAddress); err != nil {
 		return nil, err
 	}
-
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = envBaseURL
-	}
-
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
-	}
-
-	if cfg.FileStoragePath != "" {
-		cfg.FileStoragePath = filepath.Join(cfg.FileStoragePath, "storage.json")
-	}
-
-	if cfg.FileStoragePath == "" {
-		cfg.FileStoragePath = filepath.Join(envPath, envFileStorageName)
-	}
-
-	if cfg.FileStoragePath == "" {
-		cfg.FileStoragePath = defaultStoragePath
-	}
-
-	if cfg.DatabaseDSN == "" {
-		cfg.DatabaseDSN = defaultDatabaseDSN
-	}
-
-	// Установка размера батча из переменной окружения, если указана
-	if envBatchSize != "" {
-		size, parseErr := strconv.Atoi(envBatchSize) // используем другое имя переменной
-		if parseErr == nil {
-			cfg.BatchSize = size
-		}
-	}
-
-	if cfg.BatchSize <= 0 {
-		cfg.BatchSize = defaultBatchSize
-	}
-
-	// Проверка корректности URL
-	err = validator.ValidateBaseURL(cfg.BaseURL)
-	if err != nil {
+	if err := validator.ValidateBaseURL(cfg.baseURL); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
 }
+
+// WithServerAddress устанавливает адрес сервера
+func WithServerAddress(addr string) Option {
+	return func(c *Config) {
+		if addr != "" {
+			c.serverAddress = addr
+		}
+	}
+}
+
+// WithBaseURL устанавливает базовый URL
+func WithBaseURL(url string) Option {
+	return func(c *Config) {
+		if url != "" {
+			c.baseURL = url
+		}
+	}
+}
+
+// WithFileStoragePath устанавливает путь к файлу хранилища
+func WithFileStoragePath(path string) Option {
+	return func(c *Config) {
+		if path != "" {
+			c.fileStoragePath = path
+		}
+	}
+}
+
+// WithDatabaseDSN устанавливает строку подключения к БД
+func WithDatabaseDSN(dsn string) Option {
+	return func(c *Config) {
+		if dsn != "" {
+			c.databaseDSN = dsn
+		}
+	}
+}
+
+// WithBatchSize устанавливает размер пакета
+func WithBatchSize(size int) Option {
+	return func(c *Config) {
+		if size > 0 {
+			c.batchSize = size
+		}
+	}
+}
+
+// WithDebug устанавливает режим отладки
+func WithDebug(debug bool) Option {
+	return func(c *Config) {
+		c.debug = debug
+	}
+}
+
+// WithHTTPS устанавливает использование HTTPS
+func WithHTTPS(enable bool, certPath, keyPath string) Option {
+	return func(c *Config) {
+		c.enableHTTPS = enable
+		if certPath != "" {
+			c.certPath = certPath
+		}
+		if keyPath != "" {
+			c.keyPath = keyPath
+		}
+	}
+}
+
+// FromFile загружает конфигурацию из JSON файла
+func FromFile(filename string) Option {
+	return func(c *Config) {
+		if filename == "" {
+			return
+		}
+
+		file, err := os.ReadFile(filename)
+		if err != nil {
+			return
+		}
+
+		var fileCfg struct {
+			ServerAddress   string `json:"server_address"`
+			BaseURL         string `json:"base_url"`
+			FileStoragePath string `json:"file_storage_path"`
+			DatabaseDSN     string `json:"database_dsn"`
+			BatchSize       int    `json:"batch_size"`
+			Debug           bool   `json:"debug"`
+			EnableHTTPS     bool   `json:"enable_https"`
+			CertPath        string `json:"cert_path"`
+			KeyPath         string `json:"key_path"`
+		}
+
+		if err := json.Unmarshal(file, &fileCfg); err != nil {
+			return
+		}
+
+		WithServerAddress(fileCfg.ServerAddress)(c)
+		WithBaseURL(fileCfg.BaseURL)(c)
+		WithFileStoragePath(fileCfg.FileStoragePath)(c)
+		WithDatabaseDSN(fileCfg.DatabaseDSN)(c)
+		WithBatchSize(fileCfg.BatchSize)(c)
+		WithDebug(fileCfg.Debug)(c)
+		WithHTTPS(fileCfg.EnableHTTPS, fileCfg.CertPath, fileCfg.KeyPath)(c)
+	}
+}
+
+// FromEnv загружает конфигурацию из переменных окружения
+func FromEnv() Option {
+	return func(c *Config) {
+		// Сетевые настройки
+		if addr := os.Getenv("SERVER_ADDRESS"); addr != "" {
+			WithServerAddress(addr)(c)
+		}
+		if url := os.Getenv("BASE_URL"); url != "" {
+			WithBaseURL(url)(c)
+		}
+
+		// Настройки хранилища
+		if path := os.Getenv("FILE_STORAGE_PATH"); path != "" {
+			name := os.Getenv("FILE_STORAGE_NAME")
+			fullPath := filepath.Join(path, name)
+			WithFileStoragePath(fullPath)(c)
+		}
+		if dsn := os.Getenv("DATABASE_DSN"); dsn != "" {
+			WithDatabaseDSN(dsn)(c)
+		}
+
+		// Настройки производительности
+		if size := os.Getenv("BATCH_SIZE"); size != "" {
+			if s, err := strconv.Atoi(size); err == nil {
+				WithBatchSize(s)(c)
+			}
+		}
+
+		// Настройки отладки
+		if debug := os.Getenv("DEBUG"); debug == "true" {
+			WithDebug(true)(c)
+		}
+
+		// Настройки безопасности (HTTPS)
+		WithHTTPS(
+			os.Getenv("ENABLE_HTTPS") == "true",
+			os.Getenv("CERT_PATH"),
+			os.Getenv("KEY_PATH"),
+		)(c)
+	}
+}
+
+// FromFlags загружает конфигурацию из флагов командной строки
+func FromFlags() Option {
+	return func(c *Config) {
+		var (
+			// Сетевые настройки
+			serverAddress string
+			baseURL       string
+
+			// Настройки хранилища
+			fileStoragePath string
+			databaseDSN     string
+
+			// Настройки производительности
+			batchSize int
+
+			// Настройки отладки
+			debug bool
+
+			// Настройки безопасности (HTTPS)
+			enableHTTPS bool
+			certPath    string
+			keyPath     string
+		)
+
+		// Определение флагов
+		flag.StringVar(&serverAddress, "a", "", "HTTP server address")
+		flag.StringVar(&baseURL, "b", "", "Base URL for shortened links")
+		flag.StringVar(&fileStoragePath, "f", "", "Path to file storage")
+		flag.StringVar(&databaseDSN, "d", "", "Database connection string")
+		flag.IntVar(&batchSize, "batch", 0, "Batch size for bulk operations")
+		flag.BoolVar(&debug, "debug", false, "Enable debug mode")
+		flag.BoolVar(&enableHTTPS, "s", false, "Enable HTTPS")
+		flag.StringVar(&certPath, "cert", "", "Path to SSL certificate")
+		flag.StringVar(&keyPath, "key", "", "Path to SSL key")
+
+		flag.Parse()
+
+		// Применение значений
+		WithServerAddress(serverAddress)(c)
+		WithBaseURL(baseURL)(c)
+		WithFileStoragePath(fileStoragePath)(c)
+		WithDatabaseDSN(databaseDSN)(c)
+		WithBatchSize(batchSize)(c)
+		WithDebug(debug)(c)
+		WithHTTPS(enableHTTPS, certPath, keyPath)(c)
+	}
+}
+
+// InitConfig инициализирует конфигурацию приложения
+func InitConfig() (*Config, error) {
+	var configPath string
+	flag.StringVar(&configPath, "c", "", "Path to config file")
+	flag.StringVar(&configPath, "config", "", "Path to config file")
+
+	if configPath == "" {
+		configPath = os.Getenv("CONFIG")
+	}
+
+	// Создаем конфигурацию с приоритетом: флаги > переменные окружения > файл > значения по умолчанию
+	return New(
+		FromFile(configPath), // Наименьший приоритет
+		FromEnv(),            // Средний приоритет
+		FromFlags(),          // Наивысший приоритет
+	)
+}
+
+// ServerAddress возвращает адрес HTTP сервера
+func (c *Config) ServerAddress() string { return c.serverAddress }
+
+// BaseURL возвращает базовый URL для коротких ссылок
+func (c *Config) BaseURL() string { return c.baseURL }
+
+// FileStoragePath возвращает путь к файлу хранилища данных
+func (c *Config) FileStoragePath() string { return c.fileStoragePath }
+
+// DatabaseDSN возвращает строку подключения к базе данных
+func (c *Config) DatabaseDSN() string { return c.databaseDSN }
+
+// BatchSize возвращает размер пакета для массовых операций
+func (c *Config) BatchSize() int { return c.batchSize }
+
+// Debug возвращает флаг включения режима отладки
+func (c *Config) Debug() bool { return c.debug }
+
+// EnableHTTPS возвращает флаг включения HTTPS
+func (c *Config) EnableHTTPS() bool { return c.enableHTTPS }
+
+// CertPath возвращает путь к SSL сертификату
+func (c *Config) CertPath() string { return c.certPath }
+
+// KeyPath возвращает путь к приватному ключу SSL
+func (c *Config) KeyPath() string { return c.keyPath }

@@ -70,3 +70,10 @@ func (m *MockStorage) DeleteUserURLs(ctx context.Context, userID string, shortUR
 	}
 	return nil
 }
+
+// Close корректно закрывает моковое хранилище.
+// Для mock storage никаких действий не требуется.
+func (m *MockStorage) Close() error {
+	// Для mock storage нет необходимости в сохранении данных
+	return nil
+}

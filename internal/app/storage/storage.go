@@ -21,8 +21,14 @@ type URLWriter interface {
 	DeleteUserURLs(ctx context.Context, userID string, shortURLs []string) error
 }
 
-// URLStorage объединяет интерфейсы URLReader и URLWriter.
+// GracefulCloser определяет метод для корректного закрытия хранилища.
+type GracefulCloser interface {
+	Close() error
+}
+
+// URLStorage объединяет интерфейсы URLReader, URLWriter и GracefulCloser.
 type URLStorage interface {
 	URLReader
 	URLWriter
+	GracefulCloser
 }
