@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
+	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
 
 // InMemoryStorage управляет сохранением и получением данных в памяти.
@@ -99,4 +100,26 @@ func (s *InMemoryStorage) DeleteUserURLs(ctx context.Context, userID string, sho
 func (s *InMemoryStorage) Close() error {
 	// Для хранилища в памяти нет необходимости в сохранении данных
 	return nil
+}
+
+// GetStats возвращает статистику сервиса
+func (s *InMemoryStorage) GetStats(ctx context.Context) (*storage.Stats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Подсчитываем количество неудаленных URL
+	urlCount := 0
+	for _, url := range s.data {
+		if url != "" {
+			urlCount++
+		}
+	}
+
+	// Подсчитываем количество уникальных пользователей
+	userCount := len(s.userData)
+
+	return &storage.Stats{
+		URLs:  urlCount,
+		Users: userCount,
+	}, nil
 }

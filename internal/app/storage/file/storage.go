@@ -9,6 +9,7 @@ import (
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/fileutils"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
+	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 )
 
 // FileStorage управляет сохранением и получением данных в файле.
@@ -225,4 +226,36 @@ func (s *FileStorage) Close() error {
 	}
 
 	return s.saveAllData()
+}
+
+// GetStats возвращает статистику сервиса
+func (s *FileStorage) GetStats(ctx context.Context) (*storage.Stats, error) {
+	// Загружаем актуальные данные из файла
+	if err := s.LoadFromFile(); err != nil {
+		return nil, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Подсчитываем количество неудаленных URL
+	urlCount := 0
+	for _, urlModel := range s.data {
+		if !urlModel.Deleted {
+			urlCount++
+		}
+	}
+
+	// Подсчитываем количество уникальных пользователей
+	uniqueUsers := make(map[string]struct{})
+	for _, urlModel := range s.data {
+		if urlModel.UserID != "" {
+			uniqueUsers[urlModel.UserID] = struct{}{}
+		}
+	}
+
+	return &storage.Stats{
+		URLs:  urlCount,
+		Users: len(uniqueUsers),
+	}, nil
 }
