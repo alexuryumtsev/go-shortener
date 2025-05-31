@@ -13,7 +13,8 @@ func TestLoadConfigFile(t *testing.T) {
         "base_url": "http://test.com",
         "file_storage_path": "/test/path.db",
         "database_dsn": "test-dsn",
-        "enable_https": false
+        "enable_https": false,
+        "trusted_subnet": "192.168.1.0/24"
     }`
 
 	tmpfile, err := os.CreateTemp("", "config-*.json")
@@ -34,4 +35,5 @@ func TestLoadConfigFile(t *testing.T) {
 	assert.Equal(t, "/test/path.db", cfg.FileStoragePath())
 	assert.Equal(t, "test-dsn", cfg.DatabaseDSN())
 	assert.False(t, cfg.EnableHTTPS())
+	assert.Equal(t, "192.168.1.0/24", cfg.TrustedSubnet())
 }

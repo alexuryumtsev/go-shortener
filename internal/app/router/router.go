@@ -60,6 +60,14 @@ func ShortenerRouter(cfg *config.Config, repo storage.URLStorage, userService us
 		r.Delete("/api/user/urls", handlers.DeleteUserURLsHandler(urlService, userService))
 		r.Post("/api/shorten", handlers.PostJSONHandler(urlService, userService))
 		r.Post("/api/shorten/batch", handlers.PostBatchHandler(urlService, userService))
+
+		// Эндпоинт для статистики с проверкой IP
+		r.Route("/api/internal", func(r chi.Router) {
+			r.Use(func(next http.Handler) http.Handler {
+				return middleware.IPCheckMiddleware(cfg.TrustedSubnet(), next)
+			})
+			r.Get("/stats", handlers.GetStatsHandler(urlService, repo))
+		})
 	})
 
 	return r

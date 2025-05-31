@@ -77,3 +77,27 @@ func (m *MockStorage) Close() error {
 	// Для mock storage нет необходимости в сохранении данных
 	return nil
 }
+
+// GetStats возвращает статистику сервиса
+func (m *MockStorage) GetStats(ctx context.Context) (*Stats, error) {
+	// Подсчитываем количество неудаленных URL
+	urlCount := 0
+	for _, urlModel := range m.data {
+		if !urlModel.Deleted {
+			urlCount++
+		}
+	}
+
+	// Подсчитываем количество уникальных пользователей
+	uniqueUsers := make(map[string]struct{})
+	for _, urlModel := range m.data {
+		if urlModel.UserID != "" {
+			uniqueUsers[urlModel.UserID] = struct{}{}
+		}
+	}
+
+	return &Stats{
+		URLs:  urlCount,
+		Users: len(uniqueUsers),
+	}, nil
+}

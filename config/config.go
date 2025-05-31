@@ -21,6 +21,7 @@ type Config struct {
 	enableHTTPS     bool
 	certPath        string
 	keyPath         string
+	trustedSubnet   string
 }
 
 // Option определяет функциональную опцию для конфигурации
@@ -37,6 +38,7 @@ const (
 	defaultEnableHTTPS   = false
 	defaultCertPath      = "./cert.pem"
 	defaultKeyPath       = "./key.pem"
+	defaultTrustedSubnet = ""
 )
 
 // New создает новую конфигурацию с применением опций
@@ -51,6 +53,7 @@ func New(opts ...Option) (*Config, error) {
 		enableHTTPS:     defaultEnableHTTPS,
 		certPath:        defaultCertPath,
 		keyPath:         defaultKeyPath,
+		trustedSubnet:   defaultTrustedSubnet,
 	}
 
 	// Применяем все опции
@@ -134,6 +137,15 @@ func WithHTTPS(enable bool, certPath, keyPath string) Option {
 	}
 }
 
+// WithTrustedSubnet устанавливает доверенную подсеть
+func WithTrustedSubnet(subnet string) Option {
+	return func(c *Config) {
+		if subnet != "" {
+			c.trustedSubnet = subnet
+		}
+	}
+}
+
 // FromFile загружает конфигурацию из JSON файла
 func FromFile(filename string) Option {
 	return func(c *Config) {
@@ -156,6 +168,7 @@ func FromFile(filename string) Option {
 			EnableHTTPS     bool   `json:"enable_https"`
 			CertPath        string `json:"cert_path"`
 			KeyPath         string `json:"key_path"`
+			TrustedSubnet   string `json:"trusted_subnet"`
 		}
 
 		if err := json.Unmarshal(file, &fileCfg); err != nil {
@@ -169,6 +182,7 @@ func FromFile(filename string) Option {
 		WithBatchSize(fileCfg.BatchSize)(c)
 		WithDebug(fileCfg.Debug)(c)
 		WithHTTPS(fileCfg.EnableHTTPS, fileCfg.CertPath, fileCfg.KeyPath)(c)
+		WithTrustedSubnet(fileCfg.TrustedSubnet)(c)
 	}
 }
 
@@ -211,6 +225,11 @@ func FromEnv() Option {
 			os.Getenv("CERT_PATH"),
 			os.Getenv("KEY_PATH"),
 		)(c)
+
+		// Настройки доверенной подсети
+		if subnet := os.Getenv("TRUSTED_SUBNET"); subnet != "" {
+			WithTrustedSubnet(subnet)(c)
+		}
 	}
 }
 
@@ -236,6 +255,9 @@ func FromFlags() Option {
 			enableHTTPS bool
 			certPath    string
 			keyPath     string
+
+			// Настройки доверенной подсети
+			trustedSubnet string
 		)
 
 		// Определение флагов
@@ -248,6 +270,7 @@ func FromFlags() Option {
 		flag.BoolVar(&enableHTTPS, "s", false, "Enable HTTPS")
 		flag.StringVar(&certPath, "cert", "", "Path to SSL certificate")
 		flag.StringVar(&keyPath, "key", "", "Path to SSL key")
+		flag.StringVar(&trustedSubnet, "t", "", "Trusted subnet in CIDR notation")
 
 		flag.Parse()
 
@@ -259,6 +282,7 @@ func FromFlags() Option {
 		WithBatchSize(batchSize)(c)
 		WithDebug(debug)(c)
 		WithHTTPS(enableHTTPS, certPath, keyPath)(c)
+		WithTrustedSubnet(trustedSubnet)(c)
 	}
 }
 
@@ -306,3 +330,6 @@ func (c *Config) CertPath() string { return c.certPath }
 
 // KeyPath возвращает путь к приватному ключу SSL
 func (c *Config) KeyPath() string { return c.keyPath }
+
+// TrustedSubnet возвращает доверенную подсеть
+func (c *Config) TrustedSubnet() string { return c.trustedSubnet }
