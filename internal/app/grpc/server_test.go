@@ -49,7 +49,7 @@ func setupTestServer(t *testing.T) (pb.ShortenerClient, func()) {
 		return lis.Dial()
 	}
 
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
+	conn, err := grpc.NewClient("passthrough://bufnet",
 		grpc.WithContextDialer(bufDialer),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
