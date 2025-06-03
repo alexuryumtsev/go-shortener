@@ -7,6 +7,7 @@ import (
 
 	"github.com/alexuryumtsev/go-shortener/internal/app/db"
 	"github.com/alexuryumtsev/go-shortener/internal/app/models"
+	"github.com/alexuryumtsev/go-shortener/internal/app/storage"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -154,4 +155,28 @@ func (s *DatabaseStorage) Close() error {
 	// Для PostgreSQL storage нет необходимости в дополнительных действиях
 	// так как все операции уже коммичены в БД
 	return nil
+}
+
+// GetStats возвращает статистику сервиса
+func (s *DatabaseStorage) GetStats(ctx context.Context) (*storage.Stats, error) {
+	// Подсчитываем количество неудаленных URL
+	var urlCount int
+	urlQuery := `SELECT COUNT(*) FROM urls WHERE is_deleted = FALSE`
+	err := s.db.Pool.QueryRow(ctx, urlQuery).Scan(&urlCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count URLs: %w", err)
+	}
+
+	// Подсчитываем количество уникальных пользователей
+	var userCount int
+	userQuery := `SELECT COUNT(DISTINCT user_id) FROM urls`
+	err = s.db.Pool.QueryRow(ctx, userQuery).Scan(&userCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	return &storage.Stats{
+		URLs:  urlCount,
+		Users: userCount,
+	}, nil
 }

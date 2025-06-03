@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/alexuryumtsev/go-shortener/config"
 	"github.com/alexuryumtsev/go-shortener/internal/app/db"
+	grpcserver "github.com/alexuryumtsev/go-shortener/internal/app/grpc"
+	"github.com/alexuryumtsev/go-shortener/internal/app/grpc/pb"
 	"github.com/alexuryumtsev/go-shortener/internal/app/logger"
 	"github.com/alexuryumtsev/go-shortener/internal/app/router"
 	"github.com/alexuryumtsev/go-shortener/internal/app/service/url"
@@ -21,6 +24,8 @@ import (
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/file"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/memory"
 	"github.com/alexuryumtsev/go-shortener/internal/app/storage/pg"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // Информация о сборке приложения.
@@ -97,6 +102,39 @@ func main() {
 		Handler: router.ShortenerRouter(cfg, repo, userService, urlService),
 	}
 
+	// Создаем gRPC сервер если включен
+	var grpcServer *grpc.Server
+	var grpcListener net.Listener
+	if cfg.EnableGRPC() {
+		// Создаем gRPC сервер
+		grpcListener, err = net.Listen("tcp", cfg.GRPCAddress())
+		if err != nil {
+			log.Fatalf("Failed to listen on %s: %v", cfg.GRPCAddress(), err)
+		}
+
+		// Создаем логгер для gRPC
+		zapLogger, _ := zap.NewProduction()
+		sugarLogger := zapLogger.Sugar()
+
+		// Создаем gRPC сервер с интерсепторами
+		grpcServer = grpc.NewServer(
+			grpc.ChainUnaryInterceptor(
+				grpcserver.RecoveryInterceptor(),
+				grpcserver.LoggingInterceptor(sugarLogger),
+				grpcserver.AuthInterceptor(userService),
+			),
+		)
+
+		// Регистрируем сервис
+		shortenerServer, err := grpcserver.NewServer(urlService, userService, repo, cfg.TrustedSubnet())
+		if err != nil {
+			log.Fatalf("Failed to create gRPC server: %v", err)
+		}
+		pb.RegisterShortenerServer(grpcServer, shortenerServer)
+
+		log.Printf("gRPC server will start at %s\n", cfg.GRPCAddress())
+	}
+
 	// Канал для получения сигналов завершения
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
@@ -122,6 +160,19 @@ func main() {
 		}
 	}()
 
+	// Горутина для запуска gRPC сервера
+	if cfg.EnableGRPC() && grpcServer != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			log.Printf("gRPC server started at %s\n", cfg.GRPCAddress())
+
+			if err := grpcServer.Serve(grpcListener); err != nil {
+				log.Printf("gRPC server error: %v", err)
+			}
+		}()
+	}
+
 	// Горутина для обработки сигналов завершения
 	wg.Add(1)
 	go func() {
@@ -140,6 +191,12 @@ func main() {
 			log.Printf("Server shutdown error: %v", err)
 		} else {
 			log.Println("HTTP server stopped gracefully")
+		}
+
+		// Останавливаем gRPC сервер
+		if grpcServer != nil {
+			grpcServer.GracefulStop()
+			log.Println("gRPC server stopped gracefully")
 		}
 
 		// Сохраняем данные в хранилище
