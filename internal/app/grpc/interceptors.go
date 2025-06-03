@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // AuthInterceptor создает интерсептор для аутентификации
@@ -77,7 +78,7 @@ func RecoveryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = grpc.Errorf(grpc.Code(err), "panic recovered: %v", r)
+				err = status.Errorf(status.Code(err), "panic recovered: %v", r)
 			}
 		}()
 
