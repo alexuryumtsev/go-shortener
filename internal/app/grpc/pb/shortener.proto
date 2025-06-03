@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package shortener;
+
+option go_package = "github.com/alexuryumtsev/go-shortener/internal/app/grpc/pb";
+
+// Сервис для сокращения URL
+service Shortener {
+  // Создать короткий URL
+  rpc CreateShortURL(CreateShortURLRequest) returns (CreateShortURLResponse);
+
+  // Создать короткий URL (JSON)
+  rpc CreateShortURLJSON(CreateShortURLJSONRequest) returns (CreateShortURLJSONResponse);
+
+  // Создать несколько коротких URL
+  rpc CreateShortURLBatch(CreateShortURLBatchRequest) returns (CreateShortURLBatchResponse);
+
+  // Получить оригинальный URL по короткому
+  rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
+
+  // Получить все URL пользователя
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+
+  // Удалить URL пользователя
+  rpc DeleteUserURLs(DeleteUserURLsRequest) returns (DeleteUserURLsResponse);
+
+  // Проверить соединение с БД
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // Получить статистику
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+// Запрос на создание короткого URL
+message CreateShortURLRequest {
+  string url = 1;
+}
+
+// Ответ с коротким URL
+message CreateShortURLResponse {
+  string short_url = 1;
+}
+
+// Запрос на создание короткого URL (JSON)
+message CreateShortURLJSONRequest {
+  string url = 1;
+}
+
+// Ответ с коротким URL (JSON)
+message CreateShortURLJSONResponse {
+  string result = 1;
+}
+
+// Элемент пакетного запроса
+message URLBatchItem {
+  string correlation_id = 1;
+  string original_url = 2;
+}
+
+// Запрос на создание нескольких коротких URL
+message CreateShortURLBatchRequest {
+  repeated URLBatchItem urls = 1;
+}
+
+// Элемент пакетного ответа
+message BatchResponseItem {
+  string correlation_id = 1;
+  string short_url = 2;
+}
+
+// Ответ с несколькими короткими URL
+message CreateShortURLBatchResponse {
+  repeated BatchResponseItem urls = 1;
+}
+
+// Запрос на получение оригинального URL
+message GetOriginalURLRequest {
+  string id = 1;
+}
+
+// Ответ с оригинальным URL
+message GetOriginalURLResponse {
+  string original_url = 1;
+}
+
+// Запрос на получение всех URL пользователя
+message GetUserURLsRequest {
+  // Пустое сообщение, так как пользователь определяется по токену
+}
+
+// Элемент списка URL пользователя
+message UserURL {
+  string short_url = 1;
+  string original_url = 2;
+}
+
+// Ответ со списком URL пользователя
+message GetUserURLsResponse {
+  repeated UserURL urls = 1;
+}
+
+// Запрос на удаление URL
+message DeleteUserURLsRequest {
+  repeated string short_urls = 1;
+}
+
+// Ответ на удаление URL
+message DeleteUserURLsResponse {
+  // Пустое сообщение, так как операция асинхронная
+}
+
+// Запрос на проверку соединения
+message PingRequest {
+  // Пустое сообщение
+}
+
+// Ответ на проверку соединения
+message PingResponse {
+  // Пустое сообщение
+}
+
+// Запрос на получение статистики
+message GetStatsRequest {
+  // Пустое сообщение
+}
+
+// Ответ со статистикой
+message GetStatsResponse {
+  int32 urls = 1;
+  int32 users = 2;
+}

@@ -11,6 +11,7 @@ import (
 )
 
 // Config содержит настройки конфигурации приложения
+// Config содержит настройки конфигурации приложения
 type Config struct {
 	serverAddress   string
 	baseURL         string
@@ -22,6 +23,8 @@ type Config struct {
 	certPath        string
 	keyPath         string
 	trustedSubnet   string
+	grpcAddress     string
+	enableGRPC      bool
 }
 
 // Option определяет функциональную опцию для конфигурации
@@ -39,6 +42,8 @@ const (
 	defaultCertPath      = "./cert.pem"
 	defaultKeyPath       = "./key.pem"
 	defaultTrustedSubnet = ""
+	defaultGRPCAddress   = ":50051"
+	defaultEnableGRPC    = false
 )
 
 // New создает новую конфигурацию с применением опций
@@ -54,6 +59,8 @@ func New(opts ...Option) (*Config, error) {
 		certPath:        defaultCertPath,
 		keyPath:         defaultKeyPath,
 		trustedSubnet:   defaultTrustedSubnet,
+		grpcAddress:     defaultGRPCAddress,
+		enableGRPC:      defaultEnableGRPC,
 	}
 
 	// Применяем все опции
@@ -146,6 +153,22 @@ func WithTrustedSubnet(subnet string) Option {
 	}
 }
 
+// WithGRPCAddress устанавливает адрес gRPC сервера
+func WithGRPCAddress(addr string) Option {
+	return func(c *Config) {
+		if addr != "" {
+			c.grpcAddress = addr
+		}
+	}
+}
+
+// WithEnableGRPC включает/выключает gRPC сервер
+func WithEnableGRPC(enable bool) Option {
+	return func(c *Config) {
+		c.enableGRPC = enable
+	}
+}
+
 // FromFile загружает конфигурацию из JSON файла
 func FromFile(filename string) Option {
 	return func(c *Config) {
@@ -169,6 +192,8 @@ func FromFile(filename string) Option {
 			CertPath        string `json:"cert_path"`
 			KeyPath         string `json:"key_path"`
 			TrustedSubnet   string `json:"trusted_subnet"`
+			GRPCAddress     string `json:"grpc_address"`
+			EnableGRPC      bool   `json:"enable_grpc"`
 		}
 
 		if err := json.Unmarshal(file, &fileCfg); err != nil {
@@ -183,6 +208,8 @@ func FromFile(filename string) Option {
 		WithDebug(fileCfg.Debug)(c)
 		WithHTTPS(fileCfg.EnableHTTPS, fileCfg.CertPath, fileCfg.KeyPath)(c)
 		WithTrustedSubnet(fileCfg.TrustedSubnet)(c)
+		WithGRPCAddress(fileCfg.GRPCAddress)(c)
+		WithEnableGRPC(fileCfg.EnableGRPC)(c)
 	}
 }
 
@@ -230,6 +257,14 @@ func FromEnv() Option {
 		if subnet := os.Getenv("TRUSTED_SUBNET"); subnet != "" {
 			WithTrustedSubnet(subnet)(c)
 		}
+
+		// Настройки gRPC
+		if addr := os.Getenv("GRPC_ADDRESS"); addr != "" {
+			WithGRPCAddress(addr)(c)
+		}
+		if enable := os.Getenv("ENABLE_GRPC"); enable == "true" {
+			WithEnableGRPC(true)(c)
+		}
 	}
 }
 
@@ -258,6 +293,10 @@ func FromFlags() Option {
 
 			// Настройки доверенной подсети
 			trustedSubnet string
+
+			// Настройки gRPC
+			grpcAddress string
+			enableGRPC  bool
 		)
 
 		// Определение флагов
@@ -271,6 +310,8 @@ func FromFlags() Option {
 		flag.StringVar(&certPath, "cert", "", "Path to SSL certificate")
 		flag.StringVar(&keyPath, "key", "", "Path to SSL key")
 		flag.StringVar(&trustedSubnet, "t", "", "Trusted subnet in CIDR notation")
+		flag.StringVar(&grpcAddress, "g", "", "gRPC server address")
+		flag.BoolVar(&enableGRPC, "grpc", false, "Enable gRPC server")
 
 		flag.Parse()
 
@@ -283,6 +324,8 @@ func FromFlags() Option {
 		WithDebug(debug)(c)
 		WithHTTPS(enableHTTPS, certPath, keyPath)(c)
 		WithTrustedSubnet(trustedSubnet)(c)
+		WithGRPCAddress(grpcAddress)(c)
+		WithEnableGRPC(enableGRPC)(c)
 	}
 }
 
@@ -333,3 +376,9 @@ func (c *Config) KeyPath() string { return c.keyPath }
 
 // TrustedSubnet возвращает доверенную подсеть
 func (c *Config) TrustedSubnet() string { return c.trustedSubnet }
+
+// GRPCAddress возвращает адрес gRPC сервера
+func (c *Config) GRPCAddress() string { return c.grpcAddress }
+
+// EnableGRPC возвращает флаг включения gRPC сервера
+func (c *Config) EnableGRPC() bool { return c.enableGRPC }
